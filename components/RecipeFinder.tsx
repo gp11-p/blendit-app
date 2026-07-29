@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { IngredientInput } from "@/components/IngredientInput";
 import { IngredientChip } from "@/components/IngredientChip";
+import { PhotoInput } from "@/components/PhotoInput";
 import { RecipeCard } from "@/components/RecipeCard";
 import { RecipeCardSkeleton } from "@/components/RecipeCardSkeleton";
 import { FridgeEmptyState } from "@/components/FridgeEmptyState";
@@ -15,12 +16,20 @@ export function RecipeFinder() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function handleAdd(ingredient: string) {
-    setIngredients((prev) =>
-      prev.includes(ingredient) ? prev : [...prev, ingredient]
-    );
+  function handleAddMany(newIngredients: string[]) {
+    setIngredients((prev) => {
+      const merged = [...prev];
+      for (const item of newIngredients) {
+        if (!merged.includes(item)) merged.push(item);
+      }
+      return merged;
+    });
     setRecipe(null);
     setError(null);
+  }
+
+  function handleAdd(ingredient: string) {
+    handleAddMany([ingredient]);
   }
 
   function handleRemove(ingredient: string) {
@@ -77,6 +86,7 @@ export function RecipeFinder() {
             ))}
           </div>
         )}
+        <PhotoInput onIngredientsFound={handleAddMany} />
       </div>
 
       <Button

@@ -1,29 +1,56 @@
 "use client";
 
 import { useState } from "react";
+import { Loader2 } from "lucide-react";
 import { IngredientInput } from "@/components/IngredientInput";
 import { IngredientChip } from "@/components/IngredientChip";
 import { RecipeCard } from "@/components/RecipeCard";
 import { Button } from "@/components/ui/button";
-import { mockRecipe } from "@/lib/mock-recipe";
+import type { Recipe } from "@/lib/types";
 
 export function RecipeFinder() {
   const [ingredients, setIngredients] = useState<string[]>([]);
-  const [showRecipe, setShowRecipe] = useState(false);
+  const [recipe, setRecipe] = useState<Recipe | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   function handleAdd(ingredient: string) {
     setIngredients((prev) =>
       prev.includes(ingredient) ? prev : [...prev, ingredient]
     );
-    setShowRecipe(false);
+    setRecipe(null);
+    setError(null);
   }
 
   function handleRemove(ingredient: string) {
     setIngredients((prev) => prev.filter((item) => item !== ingredient));
-    setShowRecipe(false);
+    setRecipe(null);
+    setError(null);
   }
 
-  const canSearch = ingredients.length >= 2;
+  async function handleSearch() {
+    setLoading(true);
+    setError(null);
+    setRecipe(null);
+    try {
+      const res = await fetch("/api/recipe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ingredients }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error ?? "Errore sconosciuto.");
+      }
+      setRecipe(data);
+    } catch {
+      setError("Non sono riuscito a trovare una ricetta. Riprova.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const canSearch = ingredients.length >= 2 && !loading;
 
   return (
     <section className="mx-auto flex w-full max-w-md flex-1 flex-col gap-6 px-6 py-8">
@@ -54,13 +81,34 @@ export function RecipeFinder() {
       <Button
         type="button"
         disabled={!canSearch}
-        onClick={() => setShowRecipe(true)}
+        onClick={handleSearch}
         className="h-12 w-full rounded-full text-base font-semibold"
       >
-        Trova una ricetta
+        {loading ? (
+          <>
+            <Loader2 className="animate-spin" />
+            Sto pensando a una ricetta...
+          </>
+        ) : (
+          "Trova una ricetta"
+        )}
       </Button>
 
-      {showRecipe && <RecipeCard recipe={mockRecipe} />}
+      {error && (
+        <div className="flex flex-col items-center gap-3 rounded-2xl border border-destructive/20 bg-destructive/5 p-4 text-center text-sm text-destructive">
+          <p>{error}</p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleSearch}
+          >
+            Riprova
+          </Button>
+        </div>
+      )}
+
+      {recipe && <RecipeCard recipe={recipe} />}
     </section>
   );
 }

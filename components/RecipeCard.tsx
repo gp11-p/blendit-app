@@ -1,3 +1,4 @@
+import { UtensilsCrossed } from "lucide-react";
 import {
   Card,
   CardHeader,
@@ -12,9 +13,12 @@ interface RecipeCardProps {
 
 export function RecipeCard({ recipe }: RecipeCardProps) {
   return (
-    <Card>
+    <Card className="shadow-md shadow-primary/5">
       <CardHeader>
-        <CardTitle className="text-2xl">{recipe.title}</CardTitle>
+        <div className="flex items-center gap-2">
+          <UtensilsCrossed className="size-5 shrink-0 text-primary" />
+          <CardTitle className="text-2xl">{recipe.title}</CardTitle>
+        </div>
         <div className="flex gap-4 text-sm text-muted-foreground">
           <span>⏱ {recipe.time}</span>
           <span>📊 {recipe.difficulty}</span>

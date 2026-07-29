@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
 import { IngredientInput } from "@/components/IngredientInput";
 import { IngredientChip } from "@/components/IngredientChip";
 import { RecipeCard } from "@/components/RecipeCard";
+import { RecipeCardSkeleton } from "@/components/RecipeCardSkeleton";
+import { FridgeEmptyState } from "@/components/FridgeEmptyState";
 import { Button } from "@/components/ui/button";
 import type { Recipe } from "@/lib/types";
 
@@ -84,17 +85,12 @@ export function RecipeFinder() {
         onClick={handleSearch}
         className="h-12 w-full rounded-full text-base font-semibold"
       >
-        {loading ? (
-          <>
-            <Loader2 className="animate-spin" />
-            Sto pensando a una ricetta...
-          </>
-        ) : (
-          "Trova una ricetta"
-        )}
+        {loading ? "Sto pensando a una ricetta..." : "Trova una ricetta"}
       </Button>
 
-      {error && (
+      {loading && <RecipeCardSkeleton />}
+
+      {!loading && error && (
         <div className="flex flex-col items-center gap-3 rounded-2xl border border-destructive/20 bg-destructive/5 p-4 text-center text-sm text-destructive">
           <p>{error}</p>
           <Button
@@ -108,7 +104,15 @@ export function RecipeFinder() {
         </div>
       )}
 
-      {recipe && <RecipeCard recipe={recipe} />}
+      {!loading && !error && recipe && (
+        <div className="animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
+          <RecipeCard recipe={recipe} />
+        </div>
+      )}
+
+      {!loading && !error && !recipe && ingredients.length === 0 && (
+        <FridgeEmptyState />
+      )}
     </section>
   );
 }

@@ -7,22 +7,37 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { ShoppingListPanel } from "@/components/ShoppingListPanel";
+import { track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 import { DAYS, type PlannedMeal } from "@/lib/useMealPlan";
 
 interface MealPlanPanelProps {
   plan: PlannedMeal[];
   onRemove: (id: string) => void;
+  /** Un articolo spuntato sulla lista della spesa finisce in dispensa. */
+  onItemBought: (name: string) => void;
 }
 
-export function MealPlanPanel({ plan, onRemove }: MealPlanPanelProps) {
+export function MealPlanPanel({
+  plan,
+  onRemove,
+  onItemBought,
+}: MealPlanPanelProps) {
   const [open, setOpen] = useState(false);
   const daysWithMeals = DAYS.filter((day) =>
     plan.some((meal) => meal.day === day)
   );
 
+  function handleOpenChange(next: boolean) {
+    setOpen(next);
+    // Ci dice quante persone arrivano davvero al ciclo settimanale
+    // (pianifica → compra → cucina), che è la metrica di ritenzione vera.
+    if (next && plan.length > 0) track("shopping_list_opened");
+  }
+
   return (
-    <Collapsible open={open} onOpenChange={setOpen}>
+    <Collapsible open={open} onOpenChange={handleOpenChange}>
       <CollapsibleTrigger className="flex w-full items-center justify-between text-sm font-medium text-foreground">
         📅 Il mio piano{plan.length > 0 ? ` (${plan.length})` : ""}
         <ChevronDown
@@ -64,6 +79,8 @@ export function MealPlanPanel({ plan, onRemove }: MealPlanPanelProps) {
             </div>
           ))
         )}
+        <ShoppingListPanel plan={plan} onItemBought={onItemBought} />
+
         {plan.length > 0 && (
           <p className="text-xs text-muted-foreground">
             Il piano resta salvato solo su questo dispositivo/browser.

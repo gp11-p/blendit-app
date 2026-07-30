@@ -19,9 +19,10 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
           <UtensilsCrossed className="size-5 shrink-0 text-primary" />
           <CardTitle className="text-2xl">{recipe.title}</CardTitle>
         </div>
-        <div className="flex gap-4 text-sm text-muted-foreground">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
           <span>⏱ {recipe.time}</span>
           <span>📊 {recipe.difficulty}</span>
+          <span>🔥 {recipe.calories} kcal</span>
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">

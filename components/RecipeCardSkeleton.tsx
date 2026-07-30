@@ -9,6 +9,7 @@ export function RecipeCardSkeleton() {
         <div className="flex gap-4">
           <Skeleton className="h-4 w-14" />
           <Skeleton className="h-4 w-14" />
+          <Skeleton className="h-4 w-16" />
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">

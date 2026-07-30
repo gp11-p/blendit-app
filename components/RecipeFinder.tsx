@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { RefreshCw } from "lucide-react";
 import { IngredientInput } from "@/components/IngredientInput";
 import { IngredientChip } from "@/components/IngredientChip";
 import { PhotoInput } from "@/components/PhotoInput";
@@ -18,6 +19,7 @@ export function RecipeFinder() {
     DEFAULT_PREFERENCES
   );
   const [recipe, setRecipe] = useState<Recipe | null>(null);
+  const [previousTitles, setPreviousTitles] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,6 +32,7 @@ export function RecipeFinder() {
       return merged;
     });
     setRecipe(null);
+    setPreviousTitles([]);
     setError(null);
   }
 
@@ -40,6 +43,7 @@ export function RecipeFinder() {
   function handleRemove(ingredient: string) {
     setIngredients((prev) => prev.filter((item) => item !== ingredient));
     setRecipe(null);
+    setPreviousTitles([]);
     setError(null);
   }
 
@@ -51,13 +55,14 @@ export function RecipeFinder() {
       const res = await fetch("/api/recipe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ingredients, preferences }),
+        body: JSON.stringify({ ingredients, preferences, previousTitles }),
       });
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error ?? "Errore sconosciuto.");
       }
       setRecipe(data);
+      setPreviousTitles((prev) => [...prev, data.title].slice(-5));
     } catch {
       setError("Non sono riuscito a trovare una ricetta. Riprova.");
     } finally {
@@ -122,8 +127,18 @@ export function RecipeFinder() {
       )}
 
       {!loading && !error && recipe && (
-        <div className="animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
+        <div className="flex flex-col items-center gap-3 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
           <RecipeCard recipe={recipe} />
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={handleSearch}
+            className="text-muted-foreground"
+          >
+            <RefreshCw className="size-4" />
+            Non ti piace? Prova un&apos;altra ricetta
+          </Button>
         </div>
       )}
 

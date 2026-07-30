@@ -2,6 +2,7 @@ export interface Recipe {
   title: string;
   time: string;
   difficulty: "Facile" | "Media" | "Difficile";
+  calories: number;
   missingIngredients: string[];
   steps: string[];
 }

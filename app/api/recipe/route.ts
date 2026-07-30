@@ -11,6 +11,7 @@ const RecipeSchema = z.object({
   title: z.string(),
   time: z.string(),
   difficulty: z.enum(["Facile", "Media", "Difficile"]),
+  calories: z.number(),
   missingIngredients: z.array(z.string()),
   steps: z.array(z.string()),
 });
@@ -20,7 +21,8 @@ const SYSTEM_PROMPT = `Sei uno chef assistente per l'app Blendit. Dato un elenco
 Regole:
 - Se manca qualcosa di essenziale per completare il piatto, elencalo in missingIngredients (massimo 2 elementi). Se non manca nulla, restituisci un array vuoto.
 - steps contiene i passi in ordine, uno per elemento, brevi e chiari.
-- time è il tempo totale stimato, es. "25 min".`;
+- time è il tempo totale stimato, es. "25 min".
+- calories è una stima realistica delle kcal totali per una porzione (numero intero, es. 450).`;
 
 const KNOWN_TIMES = TIME_OPTIONS.map((option) => option.value).filter(
   (value): value is Exclude<Preferences["maxTime"], null> => value !== null
@@ -75,6 +77,12 @@ function buildPreferencesInstructions(preferences: Preferences): string {
   return `\n\nPreferenze dell'utente per questa ricetta:\n${lines.join("\n")}`;
 }
 
+function buildVariationInstruction(previousTitles: string[]): string {
+  if (previousTitles.length === 0) return "";
+
+  return `\n\nNon riproporre ricette già suggerite in questa sessione (l'utente ha chiesto un'alternativa): ${previousTitles.join(", ")}. Proponi qualcosa di diverso.`;
+}
+
 export async function POST(request: Request) {
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json(
@@ -103,6 +111,15 @@ export async function POST(request: Request) {
       ? (bodyObject as { preferences: unknown }).preferences
       : undefined
   );
+  const previousTitlesRaw =
+    "previousTitles" in bodyObject
+      ? (bodyObject as { previousTitles: unknown }).previousTitles
+      : undefined;
+  const previousTitles = Array.isArray(previousTitlesRaw)
+    ? previousTitlesRaw
+        .filter((item): item is string => typeof item === "string")
+        .slice(-5)
+    : [];
 
   if (
     !Array.isArray(ingredients) ||
@@ -123,7 +140,10 @@ export async function POST(request: Request) {
         format: zodOutputFormat(RecipeSchema),
         effort: "medium",
       },
-      system: SYSTEM_PROMPT + buildPreferencesInstructions(preferences),
+      system:
+        SYSTEM_PROMPT +
+        buildPreferencesInstructions(preferences) +
+        buildVariationInstruction(previousTitles),
       messages: [
         {
           role: "user",

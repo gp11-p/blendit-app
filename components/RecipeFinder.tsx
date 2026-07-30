@@ -2,8 +2,11 @@
 
 import { useState } from "react";
 import { RefreshCw } from "lucide-react";
+import { AddToPlanButton } from "@/components/AddToPlanButton";
 import { IngredientInput } from "@/components/IngredientInput";
 import { IngredientChip } from "@/components/IngredientChip";
+import { MealPlanPanel } from "@/components/MealPlanPanel";
+import { PartnerProductsPreview } from "@/components/PartnerProductsPreview";
 import { PhotoInput } from "@/components/PhotoInput";
 import { PreferencesPanel } from "@/components/PreferencesPanel";
 import { RecipeCard } from "@/components/RecipeCard";
@@ -11,6 +14,7 @@ import { RecipeCardSkeleton } from "@/components/RecipeCardSkeleton";
 import { FridgeEmptyState } from "@/components/FridgeEmptyState";
 import { Button } from "@/components/ui/button";
 import { DEFAULT_PREFERENCES } from "@/lib/preferences";
+import { useMealPlan } from "@/lib/useMealPlan";
 import type { Preferences, Recipe } from "@/lib/types";
 
 export function RecipeFinder() {
@@ -22,6 +26,7 @@ export function RecipeFinder() {
   const [previousTitles, setPreviousTitles] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { plan, addMeal, removeMeal } = useMealPlan();
 
   function handleAddMany(newIngredients: string[]) {
     setIngredients((prev) => {
@@ -83,6 +88,8 @@ export function RecipeFinder() {
         </p>
       </div>
 
+      <MealPlanPanel plan={plan} onRemove={removeMeal} />
+
       <div className="flex flex-col gap-3">
         <IngredientInput onAdd={handleAdd} />
         {ingredients.length > 0 && (
@@ -127,18 +134,28 @@ export function RecipeFinder() {
       )}
 
       {!loading && !error && recipe && (
-        <div className="flex flex-col items-center gap-3 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
+        <div className="flex flex-col gap-3 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
           <RecipeCard recipe={recipe} />
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={handleSearch}
-            className="text-muted-foreground"
-          >
-            <RefreshCw className="size-4" />
-            Non ti piace? Prova un&apos;altra ricetta
-          </Button>
+          {recipe.missingIngredients.length > 0 && (
+            <PartnerProductsPreview ingredients={recipe.missingIngredients} />
+          )}
+          <div className="flex flex-col items-center gap-2">
+            <AddToPlanButton
+              key={previousTitles.length}
+              recipe={recipe}
+              onAdd={addMeal}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleSearch}
+              className="text-muted-foreground"
+            >
+              <RefreshCw className="size-4" />
+              Non ti piace? Prova un&apos;altra ricetta
+            </Button>
+          </div>
         </div>
       )}
 

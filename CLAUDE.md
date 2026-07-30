@@ -51,11 +51,24 @@ in inglese.
 
 ## Cosa NON fare (per ora)
 - Non aggiungere autenticazione utente.
-- Non aggiungere database.
-- Non aggiungere pagamenti.
+- Non aggiungere un vero database/backend (va bene invece la persistenza
+  leggera lato client via localStorage, es. il piano pasti — vedi sotto).
+- Non aggiungere pagamenti o integrazioni B2B funzionanti (la vetrina
+  prodotti partner in app è solo un'anteprima visiva "presto disponibile",
+  senza acquisto reale — vedi sotto).
 - Non aggiungere il lato fashion.
 - Non aggiungere internazionalizzazione (per ora solo italiano).
 Tutte queste cose verranno dopo la demo agli investitori.
+
+## Funzionalità di personalizzazione già presenti
+- Calorie stimate per porzione su ogni ricetta.
+- Pulsante "prova un'altra ricetta" (rigenera evitando titoli già mostrati
+  nella sessione).
+- Piano pasti settimanale: salvato in localStorage (lib/useMealPlan.ts),
+  non su un database — resta solo su quel dispositivo/browser.
+- Vetrina prodotti partner (PartnerProductsPreview.tsx): mostra gli
+  ingredienti mancanti come "presto disponibili", nessun pulsante di
+  acquisto reale, nessuna integrazione B2B dietro.
 
 ## API key
 La API key Anthropic è in .env.local (variabile ANTHROPIC_API_KEY).

@@ -3,6 +3,11 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
+  getClientKey,
+  rateLimit,
+  tooManyRequestsResponse,
+} from "@/lib/rateLimit";
+import {
   DIET_OPTIONS,
   DISH_TYPE_OPTIONS,
   SERVINGS_OPTIONS,
@@ -104,7 +109,26 @@ function buildVariationInstruction(previousTitles: string[]): string {
   return `\n\nNon riproporre ricette già suggerite in questa sessione (l'utente ha chiesto un'alternativa): ${previousTitles.join(", ")}. Proponi qualcosa di diverso.`;
 }
 
+// Ogni chiamata a questo endpoint costa soldi veri (circa 1 centesimo di
+// token Anthropic). Senza un limite, chiunque scopra l'URL può svuotare il
+// budget con uno script. 15 ricette ogni 10 minuti è molto più di quanto
+// serva a una persona che cucina davvero.
+const RECIPE_LIMIT = 15;
+const RECIPE_WINDOW_MS = 10 * 60 * 1000;
+
 export async function POST(request: Request) {
+  const limit = rateLimit(
+    getClientKey(request, "recipe"),
+    RECIPE_LIMIT,
+    RECIPE_WINDOW_MS
+  );
+  if (!limit.allowed) {
+    return tooManyRequestsResponse(
+      limit,
+      "Hai generato tante ricette in poco tempo. Riprova tra qualche minuto."
+    );
+  }
+
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json(
       { error: "ANTHROPIC_API_KEY non configurata sul server." },

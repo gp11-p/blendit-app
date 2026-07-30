@@ -2,6 +2,11 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import {
+  getClientKey,
+  rateLimit,
+  tooManyRequestsResponse,
+} from "@/lib/rateLimit";
 
 const client = new Anthropic();
 
@@ -24,7 +29,30 @@ const VALID_MEDIA_TYPES = [
   "image/gif",
 ] as const;
 
+// L'analisi di una foto costa più di una ricetta di solo testo (l'immagine
+// occupa molti token), quindi il limite è più stretto.
+const VISION_LIMIT = 10;
+const VISION_WINDOW_MS = 10 * 60 * 1000;
+
+// Il client comprime già le foto sopra i 2MB, ma il server non può fidarsi di
+// quello che gli arriva: una richiesta costruita a mano potrebbe mandare
+// un'immagine enorme e far esplodere il costo della singola chiamata.
+// ~3 milioni di caratteri base64 ≈ 2.2MB di immagine.
+const MAX_IMAGE_BASE64_LENGTH = 3_000_000;
+
 export async function POST(request: Request) {
+  const limit = rateLimit(
+    getClientKey(request, "vision"),
+    VISION_LIMIT,
+    VISION_WINDOW_MS
+  );
+  if (!limit.allowed) {
+    return tooManyRequestsResponse(
+      limit,
+      "Hai analizzato tante foto in poco tempo. Riprova tra qualche minuto."
+    );
+  }
+
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json(
       { error: "ANTHROPIC_API_KEY non configurata sul server." },
@@ -51,6 +79,13 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: "Nessuna immagine ricevuta." },
       { status: 400 }
+    );
+  }
+
+  if (image.length > MAX_IMAGE_BASE64_LENGTH) {
+    return NextResponse.json(
+      { error: "La foto è troppo grande. Riprova con uno scatto più leggero." },
+      { status: 413 }
     );
   }
 

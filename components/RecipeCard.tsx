@@ -23,6 +23,9 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
           <span>⏱ {recipe.time}</span>
           <span>📊 {recipe.difficulty}</span>
           <span>🔥 {recipe.calories} kcal</span>
+          <span>
+            👥 {recipe.servings} {recipe.servings === 1 ? "persona" : "persone"}
+          </span>
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">

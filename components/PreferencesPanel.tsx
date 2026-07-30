@@ -8,7 +8,12 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { SelectableChip } from "@/components/SelectableChip";
-import { DIET_OPTIONS, DISH_TYPE_OPTIONS, TIME_OPTIONS } from "@/lib/preferences";
+import {
+  DIET_OPTIONS,
+  DISH_TYPE_OPTIONS,
+  SERVINGS_OPTIONS,
+  TIME_OPTIONS,
+} from "@/lib/preferences";
 import { cn } from "@/lib/utils";
 import type { Preferences } from "@/lib/types";
 
@@ -68,6 +73,24 @@ export function PreferencesPanel({
                 label={diet}
                 selected={preferences.diets.includes(diet)}
                 onToggle={() => toggleDiet(diet)}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="mb-2 text-xs font-medium text-muted-foreground">
+            Porzioni
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {SERVINGS_OPTIONS.map((option) => (
+              <SelectableChip
+                key={option.label}
+                label={option.label}
+                selected={preferences.servings === option.value}
+                onToggle={() =>
+                  onChange({ ...preferences, servings: option.value })
+                }
               />
             ))}
           </div>

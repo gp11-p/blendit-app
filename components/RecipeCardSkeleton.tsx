@@ -6,10 +6,11 @@ export function RecipeCardSkeleton() {
     <Card>
       <CardHeader>
         <Skeleton className="h-7 w-3/4" />
-        <div className="flex gap-4">
+        <div className="flex flex-wrap gap-4">
           <Skeleton className="h-4 w-14" />
           <Skeleton className="h-4 w-14" />
           <Skeleton className="h-4 w-16" />
+          <Skeleton className="h-4 w-20" />
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">

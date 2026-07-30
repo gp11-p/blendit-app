@@ -2,7 +2,12 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { DIET_OPTIONS, DISH_TYPE_OPTIONS, TIME_OPTIONS } from "@/lib/preferences";
+import {
+  DIET_OPTIONS,
+  DISH_TYPE_OPTIONS,
+  SERVINGS_OPTIONS,
+  TIME_OPTIONS,
+} from "@/lib/preferences";
 import type { Preferences } from "@/lib/types";
 
 const client = new Anthropic();
@@ -12,6 +17,7 @@ const RecipeSchema = z.object({
   time: z.string(),
   difficulty: z.enum(["Facile", "Media", "Difficile"]),
   calories: z.number(),
+  servings: z.number(),
   missingIngredients: z.array(z.string()),
   steps: z.array(z.string()),
 });
@@ -20,15 +26,19 @@ const SYSTEM_PROMPT = `Sei uno chef assistente per l'app Blendit. Dato un elenco
 
 Regole:
 - Se manca qualcosa di essenziale per completare il piatto, elencalo in missingIngredients (massimo 2 elementi). Se non manca nulla, restituisci un array vuoto.
-- steps contiene i passi in ordine, uno per elemento, brevi e chiari.
+- steps contiene i passi in ordine, uno per elemento, brevi e chiari, con le quantità di ingredienti adeguate al numero di porzioni.
 - time è il tempo totale stimato, es. "25 min".
-- calories è una stima realistica delle kcal totali per una porzione (numero intero, es. 450).`;
+- calories è una stima realistica delle kcal totali per porzione (numero intero, es. 450).
+- servings è il numero di persone per cui è dosata la ricetta (numero intero). Se l'utente non specifica una preferenza, scegli tu un valore ragionevole (di solito 2) e riportalo comunque in questo campo.`;
 
 const KNOWN_TIMES = TIME_OPTIONS.map((option) => option.value).filter(
   (value): value is Exclude<Preferences["maxTime"], null> => value !== null
 );
 const KNOWN_DIETS: readonly string[] = DIET_OPTIONS;
 const KNOWN_DISH_TYPES = DISH_TYPE_OPTIONS.map((option) => option.value);
+const KNOWN_SERVINGS = SERVINGS_OPTIONS.map((option) => option.value).filter(
+  (value): value is Exclude<Preferences["servings"], null> => value !== null
+);
 
 function sanitizePreferences(input: unknown): Preferences {
   const raw = (input ?? {}) as Record<string, unknown>;
@@ -52,7 +62,13 @@ function sanitizePreferences(input: unknown): Preferences {
       ? (raw.dishType as Preferences["dishType"])
       : "a caso";
 
-  return { maxTime, diets, dishType };
+  const servings =
+    typeof raw.servings === "number" &&
+    (KNOWN_SERVINGS as number[]).includes(raw.servings)
+      ? (raw.servings as Preferences["servings"])
+      : null;
+
+  return { maxTime, diets, dishType, servings };
 }
 
 function buildPreferencesInstructions(preferences: Preferences): string {
@@ -70,6 +86,11 @@ function buildPreferencesInstructions(preferences: Preferences): string {
   }
   if (preferences.dishType !== "a caso") {
     lines.push(`- Il tipo di piatto richiesto è: ${preferences.dishType}.`);
+  }
+  if (preferences.servings) {
+    lines.push(
+      `- Dosa la ricetta esattamente per ${preferences.servings} person${preferences.servings === 1 ? "a" : "e"} e riporta questo numero nel campo servings.`
+    );
   }
 
   if (lines.length === 0) return "";

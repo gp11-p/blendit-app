@@ -52,13 +52,36 @@ in inglese.
 ## Cosa NON fare (per ora)
 - Non aggiungere autenticazione utente.
 - Non aggiungere un vero database/backend (va bene invece la persistenza
-  leggera lato client via localStorage, es. il piano pasti — vedi sotto).
+  leggera lato client via localStorage: piano pasti, dispensa, lista della
+  spesa — vedi sotto).
 - Non aggiungere pagamenti o integrazioni B2B funzionanti (la vetrina
   prodotti partner in app è solo un'anteprima visiva "presto disponibile",
   senza acquisto reale — vedi sotto).
-- Non aggiungere il lato fashion.
+- Non aggiungere il lato fashion. Decisione presa il 30/07/2026: ci si
+  concentra solo sul food finché il ritorno a 7 giorni non supera il 20%.
 - Non aggiungere internazionalizzazione (per ora solo italiano).
-Tutte queste cose verranno dopo la demo agli investitori.
+Tutte queste cose verranno dopo la fase di test con utenti reali.
+
+## Regole da non violare mai (protezione e privacy)
+Queste non sono preferenze di stile: se salta una di queste, salta il
+budget o la conformità legale del progetto.
+
+- **Ogni endpoint che chiama l'AI deve passare da `rateLimit()`**
+  (`lib/rateLimit.ts`). Una nuova rotta API senza limite espone la API key
+  personale a un abuso da centinaia di euro.
+- **Nessun cookie e nessun banner cookie.** La misurazione usa un ID
+  casuale in localStorage. È una scelta di prodotto, non un dettaglio.
+- **Nessuna profilazione pubblicitaria, nessun profilo per persona.**
+  Le preferenze alimentari sotto GDPR possono rivelare salute (celiachia)
+  e religione (halal/kasher): sono dati di categoria particolare, art. 9.
+  Gli eventi restano anonimi e aggregati.
+- **Gli eventi tracciabili sono una lista chiusa** in
+  `lib/analytics-events.ts`. Non inviare stringhe libere a `/api/track`.
+- **Il service worker (`public/sw.js`) non deve fare cache.** Serve solo a
+  rendere l'app installabile. Aggiungere cache senza versionamento è la
+  causa numero uno di "ho pubblicato ma vedo la versione vecchia".
+- Se una modifica tocca cosa viene raccolto o conservato, va aggiornata
+  anche `app/privacy/page.tsx`, che oggi descrive fedelmente la realtà.
 
 ## Stato attuale del progetto
 Per l'elenco completo e aggiornato delle funzionalità già costruite, la

@@ -61,7 +61,7 @@ app/
 components/
   RecipeFinder.tsx        — componente principale, tiene tutto lo stato
   Header.tsx              — barra in alto (logo + "?")
-  IngredientInput.tsx / IngredientChip.tsx — input manuale ingredienti
+  IngredientInput.tsx — input manuale ingredienti
   PhotoInput.tsx           — input foto (compressione client-side + vision)
   PreferencesPanel.tsx     — pannello "Personalizza" (tempo/dieta/porzioni/piatto)
   SelectableChip.tsx       — chip riusabile per le selezioni
@@ -105,6 +105,33 @@ lib/
 7. **Polish UI**: shimmer/skeleton durante il caricamento (non uno
    spinner generico), fade-in della ricetta, empty state illustrato,
    palette brand, mobile-first (testato sempre a 375px e 1440px).
+
+8. **Dispensa persistente** (`lib/usePantry.ts`): gli ingredienti non sono
+   più uno stato temporaneo, restano in `localStorage`. I chip "accesi"
+   entrano nella ricetta, quelli spenti restano in dispensa ma vengono
+   ignorati. Toglie il motivo principale per cui nessuno tornava una
+   seconda volta (ridigitare ogni volta le stesse cose).
+9. **Lista della spesa** (`lib/useShoppingList.ts`): unisce le
+   `missingIngredients` di tutte le ricette pianificate. Spuntando un
+   articolo, questo finisce in dispensa — è così che si chiude il ciclo
+   settimanale pianifica → compra → cucina → ripianifica.
+10. **Condivisione ricetta**: Web Share API su mobile, copia negli appunti
+    su desktop, testo formattato per WhatsApp con link in fondo.
+11. **Feedback 👍/👎** sulla ricetta: unico canale qualitativo, non essendoci
+    account né email.
+12. **PWA installabile**: `app/manifest.ts` + `public/sw.js` (service worker
+    di sola passthrough, nessuna cache) + `components/InstallPrompt.tsx`.
+    Prerequisito tecnico per le notifiche push, che su iPhone funzionano
+    solo se l'app è stata aggiunta alla home.
+13. **Rate limiting** (`lib/rateLimit.ts`) su `/api/recipe` (15 ogni 10 min)
+    e `/api/vision` (10 ogni 10 min), più un limite di dimensione
+    sull'immagine. Protegge la API key personale dagli abusi.
+14. **Misurazione anonima** (`lib/analytics.ts` + `app/api/track/route.ts`):
+    ID casuale in `localStorage`, nessun cookie, eventi da lista chiusa
+    scritti nei log Vercel. Il conteggio delle visite lo fa il client, così
+    dai log grezzi si legge subito chi sta tornando.
+15. **Pagina privacy** (`app/privacy/page.tsx`): necessaria prima di far
+    testare l'app a persone reali in UE.
 
 ## Decisioni architetturali importanti (il "perché")
 
@@ -150,6 +177,20 @@ Discusse con l'utente, in attesa di priorità:
 - Modalità "cucina" — un passo alla volta con timer
 - Valutazione rapida della ricetta (👍/👎, solo in sessione, per
   affinare il "prova un'altra")
+
+## Da fare prima di far testare l'app (checklist)
+
+1. `npm install` non serve: non sono state aggiunte dipendenze (tutto è
+   scritto senza librerie esterne, di proposito).
+2. **Imposta uno spending limit mensile sulla console Anthropic** (es. €30).
+   È l'unico vero freno di emergenza: il rate limiter in memoria non
+   condivide i contatori tra istanze serverless.
+3. `npx tsc --noEmit` e `npm run lint` da PowerShell.
+4. `npm run dev` e prova il giro completo a 375px: aggiungi ingredienti →
+   ricetta → aggiungi al piano → apri "Il mio piano" → spunta un articolo
+   della lista → verifica che finisca in dispensa.
+5. Da telefono vero (dopo il deploy): verifica "Aggiungi a Home" su Android
+   e su iPhone, e la condivisione su WhatsApp.
 
 ## Prossimi passi possibili
 

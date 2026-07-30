@@ -2,6 +2,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { DIET_OPTIONS, DISH_TYPE_OPTIONS, TIME_OPTIONS } from "@/lib/preferences";
+import type { Preferences } from "@/lib/types";
 
 const client = new Anthropic();
 
@@ -19,6 +21,59 @@ Regole:
 - Se manca qualcosa di essenziale per completare il piatto, elencalo in missingIngredients (massimo 2 elementi). Se non manca nulla, restituisci un array vuoto.
 - steps contiene i passi in ordine, uno per elemento, brevi e chiari.
 - time è il tempo totale stimato, es. "25 min".`;
+
+const KNOWN_TIMES = TIME_OPTIONS.map((option) => option.value).filter(
+  (value): value is Exclude<Preferences["maxTime"], null> => value !== null
+);
+const KNOWN_DIETS: readonly string[] = DIET_OPTIONS;
+const KNOWN_DISH_TYPES = DISH_TYPE_OPTIONS.map((option) => option.value);
+
+function sanitizePreferences(input: unknown): Preferences {
+  const raw = (input ?? {}) as Record<string, unknown>;
+
+  const maxTime =
+    typeof raw.maxTime === "string" &&
+    (KNOWN_TIMES as string[]).includes(raw.maxTime)
+      ? (raw.maxTime as Preferences["maxTime"])
+      : null;
+
+  const diets = Array.isArray(raw.diets)
+    ? raw.diets.filter(
+        (item): item is string =>
+          typeof item === "string" && KNOWN_DIETS.includes(item)
+      )
+    : [];
+
+  const dishType =
+    typeof raw.dishType === "string" &&
+    (KNOWN_DISH_TYPES as string[]).includes(raw.dishType)
+      ? (raw.dishType as Preferences["dishType"])
+      : "a caso";
+
+  return { maxTime, diets, dishType };
+}
+
+function buildPreferencesInstructions(preferences: Preferences): string {
+  const lines: string[] = [];
+
+  if (preferences.maxTime) {
+    lines.push(
+      `- Il tempo totale di preparazione non deve superare ${preferences.maxTime} minuti.`
+    );
+  }
+  if (preferences.diets.length > 0) {
+    lines.push(
+      `- La ricetta deve rispettare queste esigenze dietetiche: ${preferences.diets.join(", ")}.`
+    );
+  }
+  if (preferences.dishType !== "a caso") {
+    lines.push(`- Il tipo di piatto richiesto è: ${preferences.dishType}.`);
+  }
+
+  if (lines.length === 0) return "";
+
+  return `\n\nPreferenze dell'utente per questa ricetta:\n${lines.join("\n")}`;
+}
 
 export async function POST(request: Request) {
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -38,10 +93,16 @@ export async function POST(request: Request) {
     );
   }
 
+  const bodyObject = typeof body === "object" && body !== null ? body : {};
   const ingredients =
-    typeof body === "object" && body !== null && "ingredients" in body
-      ? (body as { ingredients: unknown }).ingredients
+    "ingredients" in bodyObject
+      ? (bodyObject as { ingredients: unknown }).ingredients
       : undefined;
+  const preferences = sanitizePreferences(
+    "preferences" in bodyObject
+      ? (bodyObject as { preferences: unknown }).preferences
+      : undefined
+  );
 
   if (
     !Array.isArray(ingredients) ||
@@ -62,7 +123,7 @@ export async function POST(request: Request) {
         format: zodOutputFormat(RecipeSchema),
         effort: "medium",
       },
-      system: SYSTEM_PROMPT,
+      system: SYSTEM_PROMPT + buildPreferencesInstructions(preferences),
       messages: [
         {
           role: "user",

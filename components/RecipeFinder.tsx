@@ -4,14 +4,19 @@ import { useState } from "react";
 import { IngredientInput } from "@/components/IngredientInput";
 import { IngredientChip } from "@/components/IngredientChip";
 import { PhotoInput } from "@/components/PhotoInput";
+import { PreferencesPanel } from "@/components/PreferencesPanel";
 import { RecipeCard } from "@/components/RecipeCard";
 import { RecipeCardSkeleton } from "@/components/RecipeCardSkeleton";
 import { FridgeEmptyState } from "@/components/FridgeEmptyState";
 import { Button } from "@/components/ui/button";
-import type { Recipe } from "@/lib/types";
+import { DEFAULT_PREFERENCES } from "@/lib/preferences";
+import type { Preferences, Recipe } from "@/lib/types";
 
 export function RecipeFinder() {
   const [ingredients, setIngredients] = useState<string[]>([]);
+  const [preferences, setPreferences] = useState<Preferences>(
+    DEFAULT_PREFERENCES
+  );
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +51,7 @@ export function RecipeFinder() {
       const res = await fetch("/api/recipe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ingredients }),
+        body: JSON.stringify({ ingredients, preferences }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -88,6 +93,8 @@ export function RecipeFinder() {
         )}
         <PhotoInput onIngredientsFound={handleAddMany} />
       </div>
+
+      <PreferencesPanel preferences={preferences} onChange={setPreferences} />
 
       <Button
         type="button"

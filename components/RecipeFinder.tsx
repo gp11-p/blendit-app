@@ -4,55 +4,89 @@ import { useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { AddToPlanButton } from "@/components/AddToPlanButton";
 import { IngredientInput } from "@/components/IngredientInput";
-import { IngredientChip } from "@/components/IngredientChip";
+import { InstallPrompt } from "@/components/InstallPrompt";
 import { MealPlanPanel } from "@/components/MealPlanPanel";
+import { PantryPanel } from "@/components/PantryPanel";
 import { PartnerProductsPreview } from "@/components/PartnerProductsPreview";
 import { PhotoInput } from "@/components/PhotoInput";
 import { PreferencesPanel } from "@/components/PreferencesPanel";
 import { RecipeCard } from "@/components/RecipeCard";
 import { RecipeCardSkeleton } from "@/components/RecipeCardSkeleton";
+import { RecipeFeedback } from "@/components/RecipeFeedback";
+import { ShareRecipeButton } from "@/components/ShareRecipeButton";
 import { FridgeEmptyState } from "@/components/FridgeEmptyState";
 import { Button } from "@/components/ui/button";
+import { track } from "@/lib/analytics";
 import { DEFAULT_PREFERENCES } from "@/lib/preferences";
 import { useMealPlan } from "@/lib/useMealPlan";
+import { usePantry } from "@/lib/usePantry";
 import type { Preferences, Recipe } from "@/lib/types";
 
 export function RecipeFinder() {
-  const [ingredients, setIngredients] = useState<string[]>([]);
+  // Gli ingredienti non vivono più in uno stato temporaneo: stanno in
+  // dispensa, che sopravvive alla chiusura della pagina. È il cambiamento che
+  // toglie il motivo principale per cui una persona non tornava — dover
+  // ridigitare ogni volta le stesse dieci cose.
+  const pantry = usePantry();
+
   const [preferences, setPreferences] = useState<Preferences>(
     DEFAULT_PREFERENCES
   );
   const [recipe, setRecipe] = useState<Recipe | null>(null);
+  // Identifica la ricetta a schermo indipendentemente dal titolo (due
+  // ricette diverse possono avere lo stesso titolo) e senza il limite di
+  // previousTitles (troncato a 5): usata come key per resettare feedback e
+  // stato "aggiunta al piano" ad ogni nuova ricetta, anche oltre la 5ª.
+  const [recipeKey, setRecipeKey] = useState(0);
   const [previousTitles, setPreviousTitles] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { plan, addMeal, removeMeal } = useMealPlan();
 
-  function handleAddMany(newIngredients: string[]) {
-    setIngredients((prev) => {
-      const merged = [...prev];
-      for (const item of newIngredients) {
-        if (!merged.includes(item)) merged.push(item);
-      }
-      return merged;
-    });
+  // Solo gli ingredienti "accesi" in dispensa entrano nella ricetta.
+  const ingredients = pantry.selectedNames;
+
+  // Cambiare gli ingredienti rende la ricetta a schermo obsoleta: la togliamo
+  // invece di lasciare qualcosa che non corrisponde più a quello che si vede.
+  function resetRecipe() {
     setRecipe(null);
     setPreviousTitles([]);
     setError(null);
   }
 
   function handleAdd(ingredient: string) {
-    handleAddMany([ingredient]);
+    const dropped = pantry.add(ingredient);
+    track("ingredient_added", { source: "manual" });
+    resetRecipe();
+    if (dropped > 0) {
+      setError(
+        "Dispensa piena (max 60 ingredienti): alcuni non sono stati aggiunti."
+      );
+    }
+  }
+
+  function handlePhotoIngredients(found: string[]) {
+    const dropped = pantry.addMany(found);
+    track("photo_used", { found: found.length });
+    resetRecipe();
+    if (dropped > 0) {
+      setError(
+        "Dispensa piena (max 60 ingredienti): alcuni non sono stati aggiunti."
+      );
+    }
   }
 
   function handleRemove(ingredient: string) {
-    setIngredients((prev) => prev.filter((item) => item !== ingredient));
-    setRecipe(null);
-    setPreviousTitles([]);
-    setError(null);
+    pantry.remove(ingredient);
+    resetRecipe();
   }
 
-  async function handleSearch() {
+  function handleToggle(ingredient: string) {
+    pantry.toggle(ingredient);
+    resetRecipe();
+  }
+
+  async function handleSearch(isRegeneration: boolean) {
     setLoading(true);
     setError(null);
     setRecipe(null);
@@ -64,18 +98,48 @@ export function RecipeFinder() {
       });
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error ?? "Errore sconosciuto.");
+        throw new Error(data.error ?? "");
       }
-      setRecipe(data);
-      setPreviousTitles((prev) => [...prev, data.title].slice(-5));
-    } catch {
-      setError("Non sono riuscito a trovare una ricetta. Riprova.");
+
+      const found = data as Recipe;
+      setRecipe(found);
+      setRecipeKey((n) => n + 1);
+      setPreviousTitles((prev) => [...prev, found.title].slice(-5));
+
+      track(isRegeneration ? "recipe_regenerated" : "recipe_generated", {
+        ingredients: ingredients.length,
+        hasPreferences:
+          preferences.maxTime !== null ||
+          preferences.diets.length > 0 ||
+          preferences.dishType !== "a caso" ||
+          preferences.servings !== null,
+      });
+
+      // Segnale commerciale: quali ingredienti mancano più spesso alle
+      // persone. È il dato che rende concreta una partnership con un
+      // supermercato (il modello a commissioni del pitch). Resta aggregato e
+      // anonimo: nessun profilo per singola persona.
+      for (const missing of found.missingIngredients) {
+        track("missing_ingredient", { name: missing.slice(0, 40) });
+      }
+    } catch (err) {
+      // Se il server ha spiegato il problema (per esempio il limite di
+      // richieste), mostriamo il suo messaggio: l'utente capisce che deve
+      // solo aspettare, invece di credere che l'app sia rotta.
+      const serverMessage = err instanceof Error ? err.message : "";
+      setError(
+        serverMessage.length > 0
+          ? serverMessage
+          : "Non sono riuscito a trovare una ricetta. Riprova."
+      );
     } finally {
       setLoading(false);
     }
   }
 
   const canSearch = ingredients.length >= 2 && !loading;
+  const needsMoreSelected =
+    !loading && pantry.items.length > 0 && ingredients.length < 2;
 
   return (
     <section className="mx-auto flex w-full max-w-md flex-1 flex-col gap-6 px-6 py-8">
@@ -88,34 +152,43 @@ export function RecipeFinder() {
         </p>
       </div>
 
-      <MealPlanPanel plan={plan} onRemove={removeMeal} />
+      <MealPlanPanel
+        plan={plan}
+        onRemove={removeMeal}
+        onItemBought={(name) => pantry.addMany([name])}
+      />
 
       <div className="flex flex-col gap-3">
         <IngredientInput onAdd={handleAdd} />
-        {ingredients.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {ingredients.map((ingredient) => (
-              <IngredientChip
-                key={ingredient}
-                label={ingredient}
-                onRemove={() => handleRemove(ingredient)}
-              />
-            ))}
-          </div>
-        )}
-        <PhotoInput onIngredientsFound={handleAddMany} />
+        <PantryPanel
+          items={pantry.items}
+          onToggle={handleToggle}
+          onRemove={handleRemove}
+          onSetAllSelected={(selected) => {
+            pantry.setAllSelected(selected);
+            resetRecipe();
+          }}
+        />
+        <PhotoInput onIngredientsFound={handlePhotoIngredients} />
       </div>
 
       <PreferencesPanel preferences={preferences} onChange={setPreferences} />
 
-      <Button
-        type="button"
-        disabled={!canSearch}
-        onClick={handleSearch}
-        className="h-12 w-full rounded-full text-base font-semibold"
-      >
-        {loading ? "Sto pensando a una ricetta..." : "Trova una ricetta"}
-      </Button>
+      <div className="flex flex-col gap-2">
+        <Button
+          type="button"
+          disabled={!canSearch}
+          onClick={() => handleSearch(false)}
+          className="h-12 w-full rounded-full text-base font-semibold"
+        >
+          {loading ? "Sto pensando a una ricetta..." : "Trova una ricetta"}
+        </Button>
+        {needsMoreSelected && (
+          <p className="text-center text-xs text-muted-foreground">
+            Seleziona almeno 2 ingredienti dalla dispensa.
+          </p>
+        )}
+      </div>
 
       {loading && <RecipeCardSkeleton />}
 
@@ -126,7 +199,7 @@ export function RecipeFinder() {
             type="button"
             variant="outline"
             size="sm"
-            onClick={handleSearch}
+            onClick={() => handleSearch(false)}
           >
             Riprova
           </Button>
@@ -139,17 +212,22 @@ export function RecipeFinder() {
           {recipe.missingIngredients.length > 0 && (
             <PartnerProductsPreview ingredients={recipe.missingIngredients} />
           )}
+          <RecipeFeedback key={recipeKey} recipeTitle={recipe.title} />
           <div className="flex flex-col items-center gap-2">
             <AddToPlanButton
-              key={previousTitles.length}
+              key={recipeKey}
               recipe={recipe}
-              onAdd={addMeal}
+              onAdd={(day, planned) => {
+                addMeal(day, planned);
+                track("meal_planned");
+              }}
             />
+            <ShareRecipeButton recipe={recipe} />
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              onClick={handleSearch}
+              onClick={() => handleSearch(true)}
               className="text-muted-foreground"
             >
               <RefreshCw className="size-4" />
@@ -159,9 +237,11 @@ export function RecipeFinder() {
         </div>
       )}
 
-      {!loading && !error && !recipe && ingredients.length === 0 && (
+      {!loading && !error && !recipe && pantry.items.length === 0 && (
         <FridgeEmptyState />
       )}
+
+      <InstallPrompt />
     </section>
   );
 }

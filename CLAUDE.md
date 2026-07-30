@@ -60,15 +60,11 @@ in inglese.
 - Non aggiungere internazionalizzazione (per ora solo italiano).
 Tutte queste cose verranno dopo la demo agli investitori.
 
-## Funzionalità di personalizzazione già presenti
-- Calorie stimate per porzione su ogni ricetta.
-- Pulsante "prova un'altra ricetta" (rigenera evitando titoli già mostrati
-  nella sessione).
-- Piano pasti settimanale: salvato in localStorage (lib/useMealPlan.ts),
-  non su un database — resta solo su quel dispositivo/browser.
-- Vetrina prodotti partner (PartnerProductsPreview.tsx): mostra gli
-  ingredienti mancanti come "presto disponibili", nessun pulsante di
-  acquisto reale, nessuna integrazione B2B dietro.
+## Stato attuale del progetto
+Per l'elenco completo e aggiornato delle funzionalità già costruite, la
+struttura dei file, e le decisioni architetturali con il relativo
+"perché", vedi STATO_PROGETTO.md in questa stessa cartella — è il primo
+file da leggere in una nuova sessione per capire dove siamo arrivati.
 
 ## API key
 La API key Anthropic è in .env.local (variabile ANTHROPIC_API_KEY).

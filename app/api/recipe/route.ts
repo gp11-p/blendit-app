@@ -18,6 +18,11 @@ import type { Preferences } from "@/lib/types";
 
 const client = new Anthropic();
 
+const NamedQuantitySchema = z.object({
+  name: z.string(),
+  quantity: z.number().int().positive(),
+});
+
 const RecipeSchema = z.object({
   title: z.string(),
   time: z.string(),
@@ -25,6 +30,7 @@ const RecipeSchema = z.object({
   calories: z.number(),
   servings: z.number(),
   missingIngredients: z.array(z.string()),
+  usedQuantities: z.array(NamedQuantitySchema),
   steps: z.array(z.string()),
 });
 
@@ -32,6 +38,7 @@ const SYSTEM_PROMPT = `Sei uno chef assistente per l'app Blendit. Dato un elenco
 
 Regole:
 - Se manca qualcosa di essenziale per completare il piatto, elencalo in missingIngredients (massimo 2 elementi). Se non manca nulla, restituisci un array vuoto.
+- usedQuantities riporta, solo per gli ingredienti disponibili che si contano a unità intere (es. uova, zucchine, pomodori, singoli frutti o verdure) e che questa ricetta usa davvero, quante unità ne consuma: un elenco di {name, quantity}, con lo stesso nome esatto ricevuto in "Ingredienti disponibili". Ometti gli ingredienti misurati a peso/volume o non numerabili (farina, olio, latte, riso, sale, zucchero...) e quelli di cui non sei ragionevolmente sicuro. Se nessuno si qualifica, restituisci un array vuoto: è un risultato normale, non un errore.
 - steps contiene i passi in ordine, uno per elemento, brevi e chiari, con le quantità di ingredienti adeguate al numero di porzioni.
 - time è il tempo totale stimato, es. "25 min".
 - calories è una stima realistica delle kcal totali per porzione (numero intero, es. 450).

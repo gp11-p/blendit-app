@@ -11,21 +11,9 @@ vedi `CLAUDE.md` in questa stessa cartella. Per la roadmap originale a
 
 ---
 
-## ⚠️ Se riprendi da qui, leggi prima questo
+## Nota sul server di sviluppo locale
 
-La funzionalità "Inventario con quantità" (punto 19 più sotto) è stata
-committata e pushata su `main` (9 commit atomici, vedi `git log`) — Vercel
-la sta deployando in auto-deploy.
-
-- `npx tsc --noEmit` e `npm run lint` puliti (verificato di nuovo prima del
-  push, non solo nella sessione che ha scritto il codice).
-- Testato dal vivo con una chiamata AI reale: genera una ricetta, aggiungila
-  al piano, gli ingredienti tracciati (es. zucchine, petto di pollo) si
-  decrementano correttamente invece di spegnersi del tutto.
-- **Ancora non testato**: la stima delle quantità da una foto reale (nessuna
-  foto disponibile finora in nessuna sessione) — prima cosa da provare se
-  riprendi da qui.
-- **Il server di sviluppo locale**: quello "storico" (acceso da giorni,
+Quello "storico" (acceso da giorni,
   ereditato da sessioni precedenti) è stato fermato perché era diventato
   instabile (si ricaricava da solo, perdendo aggiornamenti in corso). Se
   Claude Code lo riavvia tramite lo strumento di anteprima browser, usa
@@ -197,6 +185,13 @@ lib/
       parte una sola richiesta con il valore finale. **Pattern da riusare**:
       qualunque futuro controllo "+/-" cliccabile rapidamente ha bisogno
       dello stesso debounce; i toggle semplici (on/off) no.
+    - **Testato con una foto vera di frigo** (2026-07-31): 10 uova stimate
+      (fila nel vano portauova, conteggio esatto) e 3 limoni stimati (cassetto
+      frutta, conteggio esatto — solo il nome era impreciso, erano lime).
+      Pomodori e uva, presenti ma non in unità facilmente contabili
+      (cestello/mazzo), correttamente lasciati senza quantità dal modello:
+      comportamento voluto, non un bug (vedi regola "se non sei ragionevolmente
+      sicuro, ometti" nel prompt di `app/api/vision/route.ts`).
 
 ## Decisioni architetturali importanti (il "perché")
 
@@ -271,13 +266,11 @@ esplicitamente.
 5. Da telefono vero (dopo il deploy): verifica "Aggiungi a Home" su Android
    e su iPhone, e la condivisione su WhatsApp.
 6. Fotografa un frigo vero e controlla che le quantità stimate per gli
-   ingredienti numerabili (uova, zucchine...) siano ragionevoli — non
-   ancora testato con una foto reale (vedi avviso in cima al file).
+   ingredienti numerabili (uova, zucchine...) siano ragionevoli — **fatto**,
+   vedi punto 19 più sopra.
 
 ## Prossimi passi possibili
 
-- **Subito**: testare la stima quantità con una foto vera di un frigo (vedi
-  avviso in cima al file — mai ancora provata con una foto reale).
 - Da `IDEE.md`, già segnate 🟢 "Prossima" con prompt pronto in
   `../ISTRUZIONI_CLAUDE_CODE.md`: Modalità cucina, Sostituzione
   ingrediente mancante. Non partire senza che Giuseppe lo chieda.

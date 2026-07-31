@@ -112,7 +112,8 @@ export function RecipeFinder() {
           preferences.maxTime !== null ||
           preferences.diets.length > 0 ||
           preferences.dishType !== "a caso" ||
-          preferences.servings !== null,
+          preferences.servings !== null ||
+          preferences.maxCalories !== null,
       });
 
       // Segnale commerciale: quali ingredienti mancano più spesso alle
@@ -217,8 +218,14 @@ export function RecipeFinder() {
             <AddToPlanButton
               key={recipeKey}
               recipe={recipe}
-              onAdd={(day, planned) => {
-                addMeal(day, planned);
+              onAdd={(day, planned, mealType) => {
+                addMeal(day, planned, mealType);
+                // Gli ingredienti usati per questa ricetta si considerano
+                // consumati: si disattivano (non si cancellano) così non
+                // vengono riproposti per la prossima ricetta. Niente
+                // resetRecipe() qui: la ricetta appena pianificata deve
+                // restare a schermo come conferma.
+                pantry.deselectMany(ingredients);
                 track("meal_planned");
               }}
             />

@@ -11,6 +11,36 @@ vedi `CLAUDE.md` in questa stessa cartella. Per la roadmap originale a
 
 ---
 
+## ⚠️ Se riprendi da qui, leggi prima questo
+
+**C'è lavoro fatto e testato ma non ancora committato.** `git status` in
+`blendit-app/` mostra 12 file modificati, tutti per la funzionalità
+"Inventario con quantità" (punto 19 più sotto): `lib/types.ts`,
+`lib/usePantry.ts`, `app/api/pantry/route.ts`, `app/api/recipe/route.ts`,
+`app/api/vision/route.ts`, `components/PantryChip.tsx`,
+`components/PantryPanel.tsx`, `components/PhotoInput.tsx`,
+`components/RecipeFinder.tsx`, `supabase/schema.sql`,
+`app/privacy/page.tsx`, e questo stesso file.
+
+- `npx tsc --noEmit` e `npm run lint` puliti.
+- Testato dal vivo con una chiamata AI reale: genera una ricetta, aggiungila
+  al piano, gli ingredienti tracciati (es. zucchine, petto di pollo) si
+  decrementano correttamente invece di spegnersi del tutto.
+- **Non testato**: la stima delle quantità da una foto reale (nessuna foto
+  disponibile in quella sessione) — prima cosa da provare se riprendi da qui.
+- Se il codice sopra ti sembra a posto, il prossimo passo naturale è
+  chiedere conferma ed eseguire i commit (atomici, uno per pezzo logico,
+  come nelle altre volte — vedi `git log` per lo stile) e poi il push.
+- **Il server di sviluppo locale**: quello "storico" (acceso da giorni,
+  ereditato da sessioni precedenti) è stato fermato perché era diventato
+  instabile (si ricaricava da solo, perdendo aggiornamenti in corso). Se
+  Claude Code lo riavvia tramite lo strumento di anteprima browser, usa
+  `.claude/launch.json` nella cartella `BLENDIT/` (non `blendit-app/`) —
+  vedi la nota sul PATH di Node in "Decisioni architetturali" più sotto,
+  già risolta lì dentro.
+
+---
+
 ## Cos'è Blendit (lato food, quello costruito qui)
 
 L'utente inserisce cosa ha in frigo (testo o foto), l'AI genera una
@@ -154,6 +184,25 @@ lib/
 18. **Pranzo o cena nel piano**: ogni pasto pianificato porta un'etichetta
     opzionale (`mealType`); si possono già pianificare più pasti sullo
     stesso giorno.
+19. **Inventario con quantità** (solo per ingredienti numerabili — uova,
+    zucchine, pomodori...): la foto stima quante unità vedi, o le imposti a
+    mano toccando il "+"/"−" sul chip in dispensa. Quando una ricetta va nel
+    piano, gli ingredienti tracciati che ha usato si decrementano invece di
+    spegnersi del tutto (a quota zero restano visibili, disattivati — non si
+    cancellano). Ingredienti a peso/volume (farina, olio...) restano come
+    prima: presenza/assenza, senza numero.
+    - **2 bug trovati testando e corretti** (utili da conoscere se tocchi
+      `lib/usePantry.ts:adjustQuantity`): (a) il chip calcolava il nuovo
+      valore leggendo una prop che poteva non essersi ancora aggiornata tra
+      un click rapido e l'altro — corretto calcolando il valore dentro la
+      updater function di `setItems`, mai prima; (b) click ripetuti
+      mandavano più chiamate di rete indipendenti che potevano completarsi
+      in un ordine diverso da quello di partenza (l'ultima *eseguita* vince,
+      non l'ultima *cliccata*) — corretto con un debounce di 400ms per
+      ingrediente (un `Map` di timer in un `useRef`, non uno stato) così
+      parte una sola richiesta con il valore finale. **Pattern da riusare**:
+      qualunque futuro controllo "+/-" cliccabile rapidamente ha bisogno
+      dello stesso debounce; i toggle semplici (on/off) no.
 
 ## Decisioni architetturali importanti (il "perché")
 
@@ -176,6 +225,21 @@ lib/
   sistema non si aggiorna nelle sessioni di terminale già aperte (va
   riletto da registro o riaperto un terminale nuovo) — non è un
   problema del progetto, solo una nota se capita di nuovo in futuro.
+- **Stesso problema di PATH, versione Claude Code**: lo strumento di
+  anteprima browser di Claude Code lancia processi con un PATH che non
+  include Node.js. `BLENDIT/.claude/launch.json` (attenzione: cartella
+  superiore, non `blendit-app/.claude/`) risolve il problema lanciando
+  `cmd.exe /c "set PATH=C:\Program Files\nodejs;%PATH% && npm --prefix
+  blendit-app run dev"` invece del solo `npm run dev` — tentativi più
+  diretti (`npm.cmd` o `node.exe` come eseguibile, senza passare da
+  `cmd.exe`) falliscono perché anche i processi figli (npm → next)
+  ereditano il PATH incompleto.
+- **Il server di sviluppo va riavviato ogni tanto**: dopo molte ore/giorni
+  di hot-reload continuo (Fast Refresh/Turbopack) può diventare instabile
+  e ricaricarsi da solo ripetutamente, perdendo aggiornamenti di stato in
+  corso (es. timer di un debounce) — capitato una volta con un processo
+  acceso da più di un giorno. Se qualcosa non si salva più / la pagina si
+  ricarica da sola senza motivo, prova prima a riavviarlo.
 
 ## Cosa NON c'è (di proposito, per ora)
 
@@ -200,8 +264,9 @@ esplicitamente.
 
 ## Da fare prima di far testare l'app (checklist)
 
-1. `npm install` non serve: non sono state aggiunte dipendenze (tutto è
-   scritto senza librerie esterne, di proposito).
+1. `npm install` serve (da quando c'è Supabase: `@supabase/supabase-js`
+   è l'unica dipendenza esterna aggiunta finora, di proposito tenuta al
+   minimo).
 2. **Imposta uno spending limit mensile sulla console Anthropic** (es. €30).
    È l'unico vero freno di emergenza: il rate limiter in memoria non
    condivide i contatori tra istanze serverless.
@@ -211,11 +276,20 @@ esplicitamente.
    della lista → verifica che finisca in dispensa.
 5. Da telefono vero (dopo il deploy): verifica "Aggiungi a Home" su Android
    e su iPhone, e la condivisione su WhatsApp.
+6. Fotografa un frigo vero e controlla che le quantità stimate per gli
+   ingredienti numerabili (uova, zucchine...) siano ragionevoli — non
+   ancora testato con una foto reale (vedi avviso in cima al file).
 
 ## Prossimi passi possibili
 
+- **Subito**: commit + push del lavoro descritto in cima al file (in
+  attesa di conferma di Giuseppe).
+- Da `IDEE.md`, già segnate 🟢 "Prossima" con prompt pronto in
+  `../ISTRUZIONI_CLAUDE_CODE.md`: Modalità cucina, Sostituzione
+  ingrediente mancante. Non partire senza che Giuseppe lo chieda.
 - Fase 8 della guida originale: preparazione demo investitori (test da
-  altro dispositivo, video di backup, ricette "sicure" pre-testate)
+  altro dispositivo, video di backup, ricette "sicure" pre-testate) —
+  attualmente in pausa, demo saltata per andare avanti con la roadmap.
 - Roadmap "dopo la demo" (guida, sezione 14): Supabase per persistenza
   vera → **fatto** → login → app Flutter → lato fashion → B2B reale →
   analytics → push notifications. Un progetto alla volta.

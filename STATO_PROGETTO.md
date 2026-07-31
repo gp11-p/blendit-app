@@ -13,13 +13,12 @@ vedi `CLAUDE.md` in questa stessa cartella. Per la roadmap originale a
 
 ## Nota sul server di sviluppo locale
 
-Quello "storico" (acceso da giorni,
-  ereditato da sessioni precedenti) è stato fermato perché era diventato
-  instabile (si ricaricava da solo, perdendo aggiornamenti in corso). Se
-  Claude Code lo riavvia tramite lo strumento di anteprima browser, usa
-  `.claude/launch.json` nella cartella `BLENDIT/` (non `blendit-app/`) —
-  vedi la nota sul PATH di Node in "Decisioni architetturali" più sotto,
-  già risolta lì dentro.
+Quello "storico" (acceso da giorni, ereditato da sessioni precedenti) è
+stato fermato perché era diventato instabile (si ricaricava da solo,
+perdendo aggiornamenti in corso). Se Claude Code lo riavvia tramite lo
+strumento di anteprima browser, usa `.claude/launch.json` nella cartella
+`BLENDIT/` (non `blendit-app/`) — vedi la nota sul PATH di Node in
+"Decisioni architetturali" più sotto, già risolta lì dentro.
 
 ---
 
@@ -192,6 +191,53 @@ lib/
       (cestello/mazzo), correttamente lasciati senza quantità dal modello:
       comportamento voluto, non un bug (vedi regola "se non sei ragionevolmente
       sicuro, ometti" nel prompt di `app/api/vision/route.ts`).
+20. **Modalità cucina** (`components/CookingMode.tsx`): dalla scheda ricetta,
+    schermata a tutto schermo con un passo alla volta (avanti/indietro,
+    "Passo 3 di 7"), testo grande. Screen Wake Lock API con feature-detection
+    (`'wakeLock' in navigator`) e fallback silenzioso dove non è supportata;
+    si ri-richiede il lock al ritorno di visibilità della scheda, perché il
+    browser lo rilascia da solo quando vai in background. Se un passo
+    contiene un tempo (es. "3-4 minuti"), un pulsante avvia un timer per quel
+    passo (usa il numero più alto in un intervallo). Eventi
+    `cooking_mode_started`/`cooking_mode_completed` in
+    `lib/analytics-events.ts`. Montata con `createPortal` su `document.body`,
+    non come figlio diretto nell'albero: un antenato qualunque con un
+    transform CSS (anche il residuo innocuo delle classi `animate-in` di
+    Tailwind su `RecipeCard`) intrappola un discendente `position: fixed`
+    dentro il proprio riquadro invece di fargli coprire tutto lo schermo —
+    bug trovato testando dal vivo (l'overlay copriva ~327×834px invece del
+    viewport), il portale lo evita indipendentemente da dove verrà montato
+    questo componente in futuro. **Pattern da riusare**: qualunque futuro
+    overlay/modale "a schermo intero" va portato su `document.body`, non
+    dato per scontato che `fixed` basti.
+21. **Sostituzione ingrediente mancante** (`app/api/substitute/route.ts` +
+    `components/RecipeCard.tsx`): accanto a ogni ingrediente mancante, un
+    link "non ce l'ho →". Propone fino a 2 alternative scelte SOLO tra gli
+    ingredienti già in dispensa (non genera mai "vai a comprare X"), e
+    riscrive i passi che nominano l'ingrediente mancante per usare
+    l'alternativa. Se nessun ingrediente in dispensa è un sostituto sensato,
+    lo dice esplicitamente invece di inventarne uno (`found: false`). Una
+    sostituzione riuscita toglie l'ingrediente da `missingIngredients` sulla
+    ricetta a schermo: altrimenti resterebbe comunque nella lista della
+    spesa una volta pianificata la ricetta (vedi `lib/useShoppingList.ts`),
+    anche se ormai esiste un modo per farne a meno. La riga resta comunque
+    visibile in `RecipeCard` con l'esito (non scompare): il componente tiene
+    un elenco "congelato" al primo render (`useState(recipe.missingIngredients)`)
+    apposta per questo. Stesso pattern Zod + `zodOutputFormat` +
+    `client.messages.parse()` di `app/api/recipe/route.ts`, passa da
+    `rateLimit()` come tutte le rotte AI.
+    - **Bug trovato testando dal vivo**: `<RecipeCard>` e `<RecipeFeedback>`
+      sono fratelli diretti nello stesso genitore in `RecipeFinder.tsx` — a
+      entrambi era stata data la stessa `key={recipeKey}` (per resettare lo
+      stato locale a ogni nuova ricetta), e React ha segnalato "same key" in
+      console. L'effetto pratico: lo stato dei due componenti si confondeva
+      a runtime, e il messaggio di esito della sostituzione non compariva
+      mai. Corretto dando a `RecipeCard` una key con prefisso distinto
+      (`` `recipe-${recipeKey}` ``). **Pattern da riusare**: quando due
+      elementi fratelli nello stesso genitore hanno bisogno di resettarsi
+      alla stessa "generazione" di dati, la key deve comunque essere
+      univoca tra loro, non solo stabile nel tempo — un valore numerico
+      condiviso nudo è un rischio concreto, non solo teorico.
 
 ## Decisioni architetturali importanti (il "perché")
 
@@ -271,9 +317,8 @@ esplicitamente.
 
 ## Prossimi passi possibili
 
-- Da `IDEE.md`, già segnate 🟢 "Prossima" con prompt pronto in
-  `../ISTRUZIONI_CLAUDE_CODE.md`: Modalità cucina, Sostituzione
-  ingrediente mancante. Non partire senza che Giuseppe lo chieda.
+- Modalità cucina e sostituzione ingrediente mancante (punti 20-21) sono
+  **fatte**, testate dal vivo e pushate su `main`.
 - Fase 8 della guida originale: preparazione demo investitori (test da
   altro dispositivo, video di backup, ricette "sicure" pre-testate) —
   attualmente in pausa, demo saltata per andare avanti con la roadmap.

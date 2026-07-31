@@ -139,22 +139,6 @@ un utente consumer vale zero.
 
 ## 2. Funzionalità del prodotto (lato food)
 
-### 🟢 Modalità cucina
-**Cosa:** schermata a tutto schermo, un passo alla volta, schermo che non si
-spegne (Screen Wake Lock API), timer sui passi che contengono un tempo.
-**Perché:** ti mette nelle mani della persona *mentre* cucina — è lì che nasce
-l'abitudine. È anche il differenziatore più difendibile: sposta Blendit da
-"generatore di ricette" (commodity, lo fa ChatGPT) a "compagno mentre cucini".
-**Costo:** 1-2 sere. **Prompt già pronto** in `../ISTRUZIONI_CLAUDE_CODE.md` (3.2).
-
-### 🟢 Sostituzione ingrediente mancante
-**Cosa:** "non hai la mozzarella? prova con..." con rigenerazione dei passi
-interessati.
-**Perché:** riduce l'abbandono a metà ricetta, ed è esattamente il punto in cui
-un domani vive la commissione B2B. È anche un mattone della versione
-nutrizionisti (sostituzioni dentro i vincoli del piano).
-**Costo:** 1-2 sere. **Prompt pronto** in `../ISTRUZIONI_CLAUDE_CODE.md` (3.3).
-
 ### ⚪ Notifiche push settimanali
 **Cosa:** "domenica alle 18, pianifichiamo la settimana?".
 **Perché:** senza account non esiste nessun modo di richiamare un utente.

@@ -31,6 +31,7 @@ interface PantryRow {
   name: string;
   added_at: string;
   selected: boolean;
+  quantity: number | null;
 }
 
 function toPantryItem(row: PantryRow): PantryItem {
@@ -38,6 +39,7 @@ function toPantryItem(row: PantryRow): PantryItem {
     name: row.name,
     addedAt: new Date(row.added_at).getTime(),
     selected: row.selected,
+    quantity: row.quantity,
   };
 }
 
@@ -86,7 +88,7 @@ export async function GET(request: Request) {
 
   const { data, error } = await supabase
     .from("pantry_items")
-    .select("name, added_at, selected")
+    .select("name, added_at, selected, quantity")
     .eq("owner_id", ownerId);
 
   if (error) {
@@ -113,6 +115,22 @@ export async function POST(request: Request) {
       { error: "Elenco ingredienti non valido." },
       { status: 400 }
     );
+  }
+
+  // Quantità stimate (da foto), usate solo per gli ingredienti nuovi più sotto.
+  const quantityByKey = new Map<string, number>();
+  if (Array.isArray(body?.quantities)) {
+    for (const raw of body.quantities as unknown[]) {
+      const q = raw as { name?: unknown; quantity?: unknown };
+      if (
+        typeof q?.name === "string" &&
+        typeof q?.quantity === "number" &&
+        Number.isFinite(q.quantity) &&
+        q.quantity > 0
+      ) {
+        quantityByKey.set(normalize(q.name), Math.floor(q.quantity));
+      }
+    }
   }
 
   // Ripuliamo e deduplichiamo l'input, stessa logica di lib/usePantry.ts.
@@ -173,6 +191,7 @@ export async function POST(request: Request) {
         normalized_name: normalize(name),
         name,
         selected,
+        quantity: quantityByKey.get(normalize(name)) ?? null,
       }))
     );
     if (insertError) {
@@ -185,7 +204,7 @@ export async function POST(request: Request) {
 
   const { data: finalRows, error: finalError } = await supabase
     .from("pantry_items")
-    .select("name, added_at, selected")
+    .select("name, added_at, selected, quantity")
     .eq("owner_id", ownerId);
 
   if (finalError) {
@@ -207,6 +226,51 @@ export async function PATCH(request: Request) {
   const { supabase, ownerId } = guarded;
 
   const body = await request.json();
+
+  // Ramo separato per l'aggiornamento delle quantità: ogni riga riceve un
+  // valore diverso, quindi non si presta alla tecnica .in() usata sotto -
+  // un update indipendente per riga (righe diverse, nessun conflitto).
+  if (Array.isArray(body?.quantities)) {
+    const entries: { name: string; quantity: number }[] = [];
+    for (const raw of body.quantities as unknown[]) {
+      const e = raw as { name?: unknown; quantity?: unknown };
+      if (typeof e?.name !== "string" || e.name.trim().length === 0) continue;
+      if (
+        typeof e?.quantity !== "number" ||
+        !Number.isFinite(e.quantity) ||
+        e.quantity < 0
+      )
+        continue;
+      entries.push({ name: e.name, quantity: Math.floor(e.quantity) });
+    }
+    if (entries.length === 0) {
+      return NextResponse.json(
+        { error: "Elenco quantità non valido." },
+        { status: 400 }
+      );
+    }
+
+    const results = await Promise.all(
+      entries.map(({ name, quantity }) => {
+        const update: { quantity: number; selected?: boolean } = { quantity };
+        // A quota zero non ne hai più: non va offerto per la prossima ricetta.
+        if (quantity === 0) update.selected = false;
+        return supabase
+          .from("pantry_items")
+          .update(update)
+          .eq("owner_id", ownerId)
+          .eq("normalized_name", normalize(name));
+      })
+    );
+    if (results.some((r) => r.error)) {
+      return NextResponse.json(
+        { error: "Non sono riuscito ad aggiornare la quantità." },
+        { status: 500 }
+      );
+    }
+    return NextResponse.json({ ok: true });
+  }
+
   const selected: unknown = body?.selected;
 
   if (typeof selected !== "boolean") {
@@ -222,7 +286,30 @@ export async function PATCH(request: Request) {
     .eq("owner_id", ownerId);
 
   if (body?.all === true) {
-    // Nessun filtro aggiuntivo: aggiorna tutte le righe di questo owner.
+    if (selected) {
+      // "Usa tutto" non deve riaccendere un ingrediente tracciato a quota
+      // zero: non ne hai più, offrirlo vanificherebbe il senso della
+      // quantità (stessa correzione lato client in lib/usePantry.ts).
+      const { data: rows, error: readError } = await supabase
+        .from("pantry_items")
+        .select("normalized_name, quantity")
+        .eq("owner_id", ownerId);
+      if (readError) {
+        return NextResponse.json(
+          { error: "Non sono riuscito a leggere la dispensa." },
+          { status: 500 }
+        );
+      }
+      const selectableKeys = rows
+        .filter((r) => r.quantity !== 0)
+        .map((r) => r.normalized_name);
+      if (selectableKeys.length === 0) {
+        return NextResponse.json({ ok: true });
+      }
+      query = query.in("normalized_name", selectableKeys);
+    }
+    // selected === false: nessun filtro aggiuntivo, sempre valido
+    // indipendentemente dalla quantità.
   } else if (Array.isArray(body?.names)) {
     const names: unknown[] = body.names;
     if (

@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { deviceHeaders } from "./deviceId";
+import type { NamedQuantity } from "./types";
 
 // La dispensa: l'elenco di cosa hai in casa, che resta tra una visita e
 // l'altra.
@@ -23,6 +24,12 @@ export interface PantryItem {
   addedAt: number;
   /** Se true, l'ingrediente viene usato per la prossima ricetta. */
   selected: boolean;
+  /**
+   * Conteggio tracciato per ingredienti numerabili (uova, zucchine...).
+   * `null` = non tracciato: si comporta esattamente come prima di questa
+   * funzionalità (presenza/assenza, nessun numero).
+   */
+  quantity: number | null;
 }
 
 const STORAGE_KEY = "blendit-pantry";
@@ -41,7 +48,12 @@ function isValidItem(value: unknown): value is PantryItem {
   return (
     typeof item?.name === "string" &&
     typeof item?.addedAt === "number" &&
-    typeof item?.selected === "boolean"
+    typeof item?.selected === "boolean" &&
+    // Le voci scritte prima dell'introduzione di quantity non hanno questo
+    // campo affatto: va accettato assente, non solo un numero.
+    (item?.quantity === null ||
+      item?.quantity === undefined ||
+      typeof item?.quantity === "number")
   );
 }
 
@@ -50,7 +62,11 @@ function readLegacyPantry(): PantryItem[] {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter(isValidItem) : [];
+    return Array.isArray(parsed)
+      ? parsed
+          .filter(isValidItem)
+          .map((item) => ({ ...item, quantity: item.quantity ?? null }))
+      : [];
   } catch {
     return [];
   }
@@ -103,6 +119,11 @@ async function migrateLegacyPantry(): Promise<PantryItem[] | null> {
 export function usePantry() {
   const [items, setItems] = useState<PantryItem[]>([]);
   const [loaded, setLoaded] = useState(false);
+  // Un timer di sincronizzazione per ingrediente (chiave normalizzata), per
+  // il debounce di adjustQuantity più sotto.
+  const pendingQuantitySync = useRef(
+    new Map<string, ReturnType<typeof setTimeout>>()
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -136,7 +157,10 @@ export function usePantry() {
   }, []);
 
   const addMany = useCallback(
-    (names: string[], options?: { selected?: boolean }) => {
+    (
+      names: string[],
+      options?: { selected?: boolean; quantities?: NamedQuantity[] }
+    ) => {
       const selected = options?.selected ?? true;
 
       // Ripuliamo e deduplichiamo l'input prima di toccare lo stato.
@@ -149,6 +173,22 @@ export function usePantry() {
         if (seenInInput.has(key)) continue;
         seenInInput.add(key);
         cleaned.push(name);
+      }
+
+      // Quantità stimate (da foto), usate SOLO per ingredienti nuovi: non
+      // deve mai correggere in silenzio la quantità di un ingrediente già
+      // in dispensa (magari l'utente l'ha già sistemata a mano).
+      const quantityByKey = new Map<string, number>();
+      for (const q of options?.quantities ?? []) {
+        if (
+          q &&
+          typeof q.name === "string" &&
+          typeof q.quantity === "number" &&
+          Number.isFinite(q.quantity) &&
+          q.quantity > 0
+        ) {
+          quantityByKey.set(normalize(q.name), Math.floor(q.quantity));
+        }
       }
 
       // Quanti ingredienti restano fuori per il limite MAX_ITEMS: il
@@ -172,7 +212,12 @@ export function usePantry() {
         );
         const additions = candidates
           .slice(0, Math.max(0, MAX_ITEMS - prev.length))
-          .map((name) => ({ name, addedAt: Date.now(), selected }));
+          .map((name) => ({
+            name,
+            addedAt: Date.now(),
+            selected,
+            quantity: quantityByKey.get(normalize(name)) ?? null,
+          }));
         droppedCount = candidates.length - additions.length;
 
         // Nota: questa funzione deve restare "pura" (nessun effetto
@@ -189,7 +234,11 @@ export function usePantry() {
         void fetch(API_URL, {
           method: "POST",
           headers: deviceHeaders(true),
-          body: JSON.stringify({ names: cleaned, selected }),
+          body: JSON.stringify({
+            names: cleaned,
+            selected,
+            quantities: options?.quantities ?? [],
+          }),
         }).catch(() => {});
       }
 
@@ -233,7 +282,14 @@ export function usePantry() {
   }, []);
 
   const setAllSelected = useCallback((selected: boolean) => {
-    setItems((prev) => prev.map((item) => ({ ...item, selected })));
+    setItems((prev) =>
+      prev.map((item) =>
+        // Un ingrediente tracciato a quota zero non va riacceso da "Usa
+        // tutto": non ne hai più, offrirlo vanificherebbe il senso della
+        // quantità.
+        selected && item.quantity === 0 ? item : { ...item, selected }
+      )
+    );
     void fetch(API_URL, {
       method: "PATCH",
       headers: deviceHeaders(true),
@@ -262,6 +318,132 @@ export function usePantry() {
     }).catch(() => {});
   }, []);
 
+  /**
+   * Aumenta o diminuisce di 1 la quantità tracciata di un ingrediente (dal
+   * chip in dispensa) - se non era ancora tracciato, +1 la fa partire da 1.
+   * Il nuovo valore si calcola DENTRO la updater function, leggendo lo stato
+   * più recente (non una prop già passata al chip, che potrebbe non essersi
+   * ancora aggiornata): così tap rapidi in sequenza non si perdono l'un
+   * l'altro - React incatena correttamente ogni updater al risultato del
+   * precedente nello stesso aggiornamento, una prop no.
+   * A quota zero si spegne da solo (selected: false) ma resta visibile in
+   * dispensa (non si cancella).
+   */
+  const adjustQuantity = useCallback((name: string, delta: number) => {
+    const key = normalize(name);
+    let nextQuantity: number | null = null;
+    setItems((prev) =>
+      prev.map((item) => {
+        if (normalize(item.name) !== key) return item;
+        nextQuantity = Math.max(0, (item.quantity ?? 0) + delta);
+        return {
+          ...item,
+          quantity: nextQuantity,
+          selected: nextQuantity === 0 ? false : item.selected,
+        };
+      })
+    );
+    if (nextQuantity === null) return;
+
+    // Sincronizziamo Supabase con un piccolo debounce: click rapidi in
+    // sequenza manderebbero altrimenti più PATCH indipendenti in volo
+    // insieme, e la rete non garantisce che arrivino nello stesso ordine in
+    // cui sono partiti - vincerebbe l'ultimo eseguito lato server, non
+    // l'ultimo cliccato. Aspettando che i click si fermino ne parte uno
+    // solo, con il valore finale.
+    const pending = pendingQuantitySync.current;
+    const existingTimer = pending.get(key);
+    if (existingTimer) clearTimeout(existingTimer);
+    const finalQuantity = nextQuantity;
+    pending.set(
+      key,
+      setTimeout(() => {
+        pending.delete(key);
+        void fetch(API_URL, {
+          method: "PATCH",
+          headers: deviceHeaders(true),
+          body: JSON.stringify({
+            quantities: [{ name, quantity: finalQuantity }],
+          }),
+        }).catch(() => {});
+      }, 400)
+    );
+  }, []);
+
+  /**
+   * Chiamata quando una ricetta viene aggiunta al piano: per ogni
+   * ingrediente fornito che ha una quantità tracciata E che la ricetta ha
+   * riportato di aver usato, decrementa invece di spegnere del tutto. Per
+   * tutto il resto (non tracciato, o tracciato ma non riportato) si
+   * comporta esattamente come prima di questa funzionalità - deselectMany.
+   */
+  const applyRecipeUsage = useCallback(
+    (names: string[], usedQuantities: NamedQuantity[]) => {
+      if (names.length === 0) return;
+
+      const usageByKey = new Map<string, number>();
+      for (const entry of Array.isArray(usedQuantities) ? usedQuantities : []) {
+        if (
+          entry &&
+          typeof entry.name === "string" &&
+          typeof entry.quantity === "number" &&
+          Number.isFinite(entry.quantity) &&
+          entry.quantity > 0
+        ) {
+          usageByKey.set(normalize(entry.name), Math.floor(entry.quantity));
+        }
+      }
+
+      const suppliedKeys = new Set(names.map(normalize));
+      const trackedUpdates: { name: string; quantity: number }[] = [];
+      const fallbackNames: string[] = [];
+
+      for (const item of items) {
+        const key = normalize(item.name);
+        if (!suppliedKeys.has(key)) continue;
+
+        if (item.quantity === null) {
+          fallbackNames.push(item.name); // non tracciato: comportamento di sempre
+          continue;
+        }
+        const usage = usageByKey.get(key);
+        if (usage === undefined) {
+          fallbackNames.push(item.name); // tracciato ma non riportato: non indoviniamo
+          continue;
+        }
+        trackedUpdates.push({
+          name: item.name,
+          quantity: Math.max(0, item.quantity - usage),
+        });
+      }
+
+      if (fallbackNames.length > 0) deselectMany(fallbackNames);
+
+      if (trackedUpdates.length > 0) {
+        const updatesByKey = new Map(
+          trackedUpdates.map((u) => [normalize(u.name), u.quantity])
+        );
+        setItems((prev) =>
+          prev.map((item) => {
+            const newQuantity = updatesByKey.get(normalize(item.name));
+            if (newQuantity === undefined) return item;
+            return {
+              ...item,
+              quantity: newQuantity,
+              selected: newQuantity === 0 ? false : item.selected,
+            };
+          })
+        );
+        void fetch(API_URL, {
+          method: "PATCH",
+          headers: deviceHeaders(true),
+          body: JSON.stringify({ quantities: trackedUpdates }),
+        }).catch(() => {});
+      }
+    },
+    [items, deselectMany]
+  );
+
   const clear = useCallback(() => {
     setItems([]);
     void fetch(API_URL, { method: "DELETE", headers: deviceHeaders() }).catch(
@@ -283,6 +465,8 @@ export function usePantry() {
     toggle,
     setAllSelected,
     deselectMany,
+    adjustQuantity,
+    applyRecipeUsage,
     clear,
   };
 }

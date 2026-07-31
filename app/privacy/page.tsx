@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { DeleteAllDataButton } from "@/components/DeleteAllDataButton";
 
 export const metadata: Metadata = {
   title: "Privacy — Blendit",
@@ -14,9 +15,9 @@ export const metadata: Metadata = {
 // legge nessuno e non aumenta la fiducia.
 //
 // ATTENZIONE: questo testo descrive fedelmente cosa fa l'app OGGI. Se un
-// domani aggiungi account, sincronizzazione su server, pubblicità o
-// profilazione, questa pagina non basta più e serve una vera informativa
-// (e un titolare del trattamento identificabile).
+// domani aggiungi account veri, pubblicità o profilazione, questa pagina non
+// basta più e serve una vera informativa (e un titolare del trattamento
+// identificabile).
 export default function PrivacyPage() {
   return (
     <main className="mx-auto w-full max-w-md flex-1 px-6 py-10">
@@ -49,13 +50,17 @@ export default function PrivacyPage() {
 
         <div>
           <h2 className="font-heading text-lg font-semibold">
-            La tua dispensa resta sul tuo dispositivo
+            Dispensa, piano e lista della spesa: dove vivono
           </h2>
           <p className="mt-1 text-muted-foreground">
-            Dispensa, piano settimanale e lista della spesa sono salvati nella
-            memoria del tuo browser, non su un nostro server. Non li vediamo e
-            non possiamo recuperarli. Se cancelli i dati del browser,
-            spariscono.
+            Sono salvati su un nostro server (Supabase), non solo nella
+            memoria del browser: è per questo che sopravvivono anche se
+            cancelli i dati del sito. Non sono però collegati a un account:
+            il tuo browser genera un identificativo casuale e usa quello per
+            ritrovare i tuoi dati, esattamente come per la misurazione
+            anonima qui sotto. Senza un vero account, questi dati non si
+            sincronizzano tra un dispositivo e l&apos;altro: il telefono e il
+            computer vedono dispense diverse.
           </p>
         </div>
 
@@ -89,10 +94,14 @@ export default function PrivacyPage() {
             Come cancellare tutto
           </h2>
           <p className="mt-1 text-muted-foreground">
-            Cancella i dati del sito dalle impostazioni del browser: a quel
-            punto non resta nulla che ti riguardi, perché non c&apos;è nessun
-            account da eliminare.
+            Da quando i dati vivono anche sul server, cancellare la memoria
+            del browser da solo non basta più: le righe resterebbero salvate,
+            semplicemente irraggiungibili. Usa il pulsante qui sotto per
+            cancellare entrambe le cose in un colpo solo.
           </p>
+          <div className="mt-3">
+            <DeleteAllDataButton />
+          </div>
         </div>
 
         <div>

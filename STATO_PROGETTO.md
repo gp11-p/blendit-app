@@ -13,24 +13,18 @@ vedi `CLAUDE.md` in questa stessa cartella. Per la roadmap originale a
 
 ## ⚠️ Se riprendi da qui, leggi prima questo
 
-**C'è lavoro fatto e testato ma non ancora committato.** `git status` in
-`blendit-app/` mostra 12 file modificati, tutti per la funzionalità
-"Inventario con quantità" (punto 19 più sotto): `lib/types.ts`,
-`lib/usePantry.ts`, `app/api/pantry/route.ts`, `app/api/recipe/route.ts`,
-`app/api/vision/route.ts`, `components/PantryChip.tsx`,
-`components/PantryPanel.tsx`, `components/PhotoInput.tsx`,
-`components/RecipeFinder.tsx`, `supabase/schema.sql`,
-`app/privacy/page.tsx`, e questo stesso file.
+La funzionalità "Inventario con quantità" (punto 19 più sotto) è stata
+committata e pushata su `main` (9 commit atomici, vedi `git log`) — Vercel
+la sta deployando in auto-deploy.
 
-- `npx tsc --noEmit` e `npm run lint` puliti.
+- `npx tsc --noEmit` e `npm run lint` puliti (verificato di nuovo prima del
+  push, non solo nella sessione che ha scritto il codice).
 - Testato dal vivo con una chiamata AI reale: genera una ricetta, aggiungila
   al piano, gli ingredienti tracciati (es. zucchine, petto di pollo) si
   decrementano correttamente invece di spegnersi del tutto.
-- **Non testato**: la stima delle quantità da una foto reale (nessuna foto
-  disponibile in quella sessione) — prima cosa da provare se riprendi da qui.
-- Se il codice sopra ti sembra a posto, il prossimo passo naturale è
-  chiedere conferma ed eseguire i commit (atomici, uno per pezzo logico,
-  come nelle altre volte — vedi `git log` per lo stile) e poi il push.
+- **Ancora non testato**: la stima delle quantità da una foto reale (nessuna
+  foto disponibile finora in nessuna sessione) — prima cosa da provare se
+  riprendi da qui.
 - **Il server di sviluppo locale**: quello "storico" (acceso da giorni,
   ereditato da sessioni precedenti) è stato fermato perché era diventato
   instabile (si ricaricava da solo, perdendo aggiornamenti in corso). Se
@@ -282,8 +276,8 @@ esplicitamente.
 
 ## Prossimi passi possibili
 
-- **Subito**: commit + push del lavoro descritto in cima al file (in
-  attesa di conferma di Giuseppe).
+- **Subito**: testare la stima quantità con una foto vera di un frigo (vedi
+  avviso in cima al file — mai ancora provata con una foto reale).
 - Da `IDEE.md`, già segnate 🟢 "Prossima" con prompt pronto in
   `../ISTRUZIONI_CLAUDE_CODE.md`: Modalità cucina, Sostituzione
   ingrediente mancante. Non partire senza che Giuseppe lo chieda.

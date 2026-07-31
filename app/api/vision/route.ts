@@ -10,17 +10,26 @@ import {
 
 const client = new Anthropic();
 
+const NamedQuantitySchema = z.object({
+  name: z.string(),
+  quantity: z.number().int().positive(),
+});
+
 const VisionSchema = z.object({
   ingredients: z.array(z.string()),
+  quantities: z.array(NamedQuantitySchema),
 });
 
 const SYSTEM_PROMPT = `Guarda la foto di un frigo o di una dispensa ed elenca solo gli ingredienti alimentari che riconosci chiaramente.
 
 Regole:
 - Massimo 15 ingredienti principali.
-- Nomi brevi in italiano, es. "pomodori" non "3 pomodori maturi".
+- Nomi brevi in italiano nel campo ingredients, es. "pomodori" non "3 pomodori maturi".
 - Solo cibo/ingredienti: ignora contenitori, mensole, altri oggetti.
-- Se non riconosci alcun ingrediente chiaro, restituisci un array vuoto.`;
+- Se non riconosci alcun ingrediente chiaro, restituisci un array vuoto in ingredients.
+- Nel campo quantities, stima quante unità intere vedi SOLO per gli ingredienti che si contano a pezzi (es. uova, zucchine, pomodori, mele, singoli frutti o verdure) e di cui sei ragionevolmente sicuro del numero. Usa esattamente lo stesso nome che hai messo in ingredients.
+- NON stimare una quantità per ingredienti sfusi o misurati a peso/volume (farina, olio, latte, riso, sale, zucchero, salse, confezioni chiuse...): ometti semplicemente questi ingredienti da quantities, restano comunque in ingredients senza quantità.
+- Se nessun ingrediente si presta a una stima affidabile, restituisci un array vuoto in quantities: è normale e preferibile a un numero indovinato.`;
 
 const VALID_MEDIA_TYPES = [
   "image/jpeg",

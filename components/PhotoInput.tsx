@@ -3,9 +3,13 @@
 import { useRef, useState } from "react";
 import { Loader2, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import type { NamedQuantity } from "@/lib/types";
 
 interface PhotoInputProps {
-  onIngredientsFound: (ingredients: string[]) => void;
+  onIngredientsFound: (
+    ingredients: string[],
+    quantities: NamedQuantity[]
+  ) => void;
 }
 
 const MAX_BYTES = 2 * 1024 * 1024;
@@ -89,13 +93,16 @@ export function PhotoInput({ onIngredientsFound }: PhotoInputProps) {
       const ingredients: string[] = Array.isArray(data.ingredients)
         ? data.ingredients
         : [];
+      const quantities: NamedQuantity[] = Array.isArray(data.quantities)
+        ? data.quantities
+        : [];
 
       if (ingredients.length === 0) {
         setError(
           "Hmm, non vedo ingredienti chiari. Prova ancora o inseriscili a mano."
         );
       } else {
-        onIngredientsFound(ingredients);
+        onIngredientsFound(ingredients, quantities);
         setPreviewUrl(null);
       }
     } catch {

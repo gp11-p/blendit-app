@@ -221,7 +221,24 @@ export async function PATCH(request: Request) {
     .update({ selected })
     .eq("owner_id", ownerId);
 
-  if (body?.all !== true) {
+  if (body?.all === true) {
+    // Nessun filtro aggiuntivo: aggiorna tutte le righe di questo owner.
+  } else if (Array.isArray(body?.names)) {
+    const names: unknown[] = body.names;
+    if (
+      names.length === 0 ||
+      !names.every((n) => typeof n === "string" && n.trim().length > 0)
+    ) {
+      return NextResponse.json(
+        { error: "Elenco nomi non valido." },
+        { status: 400 }
+      );
+    }
+    query = query.in(
+      "normalized_name",
+      (names as string[]).map(normalize)
+    );
+  } else {
     const name: unknown = body?.name;
     if (typeof name !== "string" || name.trim().length === 0) {
       return NextResponse.json(

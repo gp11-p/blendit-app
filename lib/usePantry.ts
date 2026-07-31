@@ -241,6 +241,27 @@ export function usePantry() {
     }).catch(() => {});
   }, []);
 
+  /**
+   * Disattiva (selected: false) un elenco di ingredienti senza cancellarli
+   * dalla dispensa - usato quando una ricetta viene aggiunta al piano, per
+   * "consumare" gli ingredienti usati senza doverli ridigitare in futuro.
+   * Stesso spirito di toggle()/setAllSelected(), ma su un sottoinsieme di nomi.
+   */
+  const deselectMany = useCallback((names: string[]) => {
+    if (names.length === 0) return;
+    const keys = new Set(names.map(normalize));
+    setItems((prev) =>
+      prev.map((item) =>
+        keys.has(normalize(item.name)) ? { ...item, selected: false } : item
+      )
+    );
+    void fetch(API_URL, {
+      method: "PATCH",
+      headers: deviceHeaders(true),
+      body: JSON.stringify({ names, selected: false }),
+    }).catch(() => {});
+  }, []);
+
   const clear = useCallback(() => {
     setItems([]);
     void fetch(API_URL, { method: "DELETE", headers: deviceHeaders() }).catch(
@@ -261,6 +282,7 @@ export function usePantry() {
     remove,
     toggle,
     setAllSelected,
+    deselectMany,
     clear,
   };
 }

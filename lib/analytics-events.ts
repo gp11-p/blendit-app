@@ -27,6 +27,10 @@ export const TRACKED_EVENTS = [
   // --- Qualità: la ricetta era buona? ---
   "recipe_rated",
 
+  // --- Modalità cucina: la persona resta fino alla fine mentre cucina? ---
+  "cooking_mode_started",
+  "cooking_mode_completed",
+
   // --- Segnale commerciale (modello a commissioni del pitch) ---
   // Registra solo QUALE ingrediente manca, in forma aggregata e anonima.
   // Nessun profilo per persona, nessuna pubblicità profilata: serve a capire

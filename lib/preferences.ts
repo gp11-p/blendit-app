@@ -1,4 +1,4 @@
-import type { DishType, MaxTime, Preferences, Servings } from "./types";
+import type { DishType, MaxCalories, MaxTime, Preferences, Servings } from "./types";
 
 export const TIME_OPTIONS: { value: MaxTime; label: string }[] = [
   { value: "15", label: "15 min" },
@@ -31,9 +31,17 @@ export const SERVINGS_OPTIONS: { value: Servings; label: string }[] = [
   { value: null, label: "Non importa" },
 ];
 
+export const CALORIE_OPTIONS: { value: MaxCalories; label: string }[] = [
+  { value: 400, label: "400 kcal" },
+  { value: 600, label: "600 kcal" },
+  { value: 800, label: "800 kcal" },
+  { value: null, label: "Nessun limite" },
+];
+
 export const DEFAULT_PREFERENCES: Preferences = {
   maxTime: null,
   diets: [],
   dishType: "a caso",
   servings: null,
+  maxCalories: null,
 };

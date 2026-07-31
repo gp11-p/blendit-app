@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/collapsible";
 import { SelectableChip } from "@/components/SelectableChip";
 import {
+  CALORIE_OPTIONS,
   DIET_OPTIONS,
   DISH_TYPE_OPTIONS,
   SERVINGS_OPTIONS,
@@ -56,6 +57,24 @@ export function PreferencesPanel({
                 selected={preferences.maxTime === option.value}
                 onToggle={() =>
                   onChange({ ...preferences, maxTime: option.value })
+                }
+              />
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="mb-2 text-xs font-medium text-muted-foreground">
+            Calorie massime
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {CALORIE_OPTIONS.map((option) => (
+              <SelectableChip
+                key={option.label}
+                label={option.label}
+                selected={preferences.maxCalories === option.value}
+                onToggle={() =>
+                  onChange({ ...preferences, maxCalories: option.value })
                 }
               />
             ))}

@@ -8,6 +8,7 @@ import {
   tooManyRequestsResponse,
 } from "@/lib/rateLimit";
 import {
+  CALORIE_OPTIONS,
   DIET_OPTIONS,
   DISH_TYPE_OPTIONS,
   SERVINGS_OPTIONS,
@@ -44,6 +45,9 @@ const KNOWN_DISH_TYPES = DISH_TYPE_OPTIONS.map((option) => option.value);
 const KNOWN_SERVINGS = SERVINGS_OPTIONS.map((option) => option.value).filter(
   (value): value is Exclude<Preferences["servings"], null> => value !== null
 );
+const KNOWN_CALORIES = CALORIE_OPTIONS.map((option) => option.value).filter(
+  (value): value is Exclude<Preferences["maxCalories"], null> => value !== null
+);
 
 function sanitizePreferences(input: unknown): Preferences {
   const raw = (input ?? {}) as Record<string, unknown>;
@@ -73,7 +77,13 @@ function sanitizePreferences(input: unknown): Preferences {
       ? (raw.servings as Preferences["servings"])
       : null;
 
-  return { maxTime, diets, dishType, servings };
+  const maxCalories =
+    typeof raw.maxCalories === "number" &&
+    (KNOWN_CALORIES as number[]).includes(raw.maxCalories)
+      ? (raw.maxCalories as Preferences["maxCalories"])
+      : null;
+
+  return { maxTime, diets, dishType, servings, maxCalories };
 }
 
 function buildPreferencesInstructions(preferences: Preferences): string {
@@ -95,6 +105,11 @@ function buildPreferencesInstructions(preferences: Preferences): string {
   if (preferences.servings) {
     lines.push(
       `- Dosa la ricetta esattamente per ${preferences.servings} person${preferences.servings === 1 ? "a" : "e"} e riporta questo numero nel campo servings.`
+    );
+  }
+  if (preferences.maxCalories) {
+    lines.push(
+      `- Le kcal totali per porzione non devono superare ${preferences.maxCalories} kcal.`
     );
   }
 

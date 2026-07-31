@@ -20,9 +20,12 @@ export type DishType =
   | "dolce"
   | "a caso";
 
+export type MaxCalories = 400 | 600 | 800 | null;
+
 export interface Preferences {
   maxTime: MaxTime;
   diets: string[];
   dishType: DishType;
   servings: Servings;
+  maxCalories: MaxCalories;
 }

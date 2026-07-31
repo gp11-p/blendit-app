@@ -60,7 +60,10 @@ export default function PrivacyPage() {
             ritrovare i tuoi dati, esattamente come per la misurazione
             anonima qui sotto. Senza un vero account, questi dati non si
             sincronizzano tra un dispositivo e l&apos;altro: il telefono e il
-            computer vedono dispense diverse.
+            computer vedono dispense diverse. Per alcuni ingredienti
+            numerabili (es. uova, zucchine) la dispensa può anche ricordare
+            una quantità approssimativa, che puoi correggere tu in qualsiasi
+            momento.
           </p>
         </div>
 
@@ -72,6 +75,9 @@ export default function PrivacyPage() {
             Se usi la fotocamera, l&apos;immagine viene inviata al modello di
             intelligenza artificiale di Anthropic solo per riconoscere gli
             ingredienti, e poi scartata. Non la salviamo da nessuna parte.
+            Per gli ingredienti che si contano a pezzi, il modello prova
+            anche a stimare quante unità vedi nella foto: è la stessa
+            analisi, non un invio aggiuntivo della foto.
           </p>
         </div>
 

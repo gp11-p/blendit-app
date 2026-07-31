@@ -50,10 +50,11 @@ in inglese.
 - Mobile-first: testa sempre a 375px di larghezza prima che a desktop.
 
 ## Cosa NON fare (per ora)
-- Non aggiungere autenticazione utente.
-- Non aggiungere un vero database/backend (va bene invece la persistenza
-  leggera lato client via localStorage: piano pasti, dispensa, lista della
-  spesa — vedi sotto).
+- Non aggiungere autenticazione utente (login/signup): dispensa, piano pasti
+  e lista della spesa vivono già su un vero backend (Supabase — vedi sotto),
+  ma restano anonime, identificate solo da un id per dispositivo, non da un
+  account. Il login vero è il passo successivo della roadmap, non ancora
+  questo.
 - Non aggiungere pagamenti o integrazioni B2B funzionanti (la vetrina
   prodotti partner in app è solo un'anteprima visiva "presto disponibile",
   senza acquisto reale — vedi sotto).
@@ -82,6 +83,12 @@ budget o la conformità legale del progetto.
   causa numero uno di "ho pubblicato ma vedo la versione vecchia".
 - Se una modifica tocca cosa viene raccolto o conservato, va aggiornata
   anche `app/privacy/page.tsx`, che oggi descrive fedelmente la realtà.
+
+## Quaderno delle idee
+Le idee di sviluppo, crescita e business — incluse quelle scartate con il
+relativo motivo — stanno in IDEE.md in questa cartella. È un magazzino, non
+una lista di cose da fare: non implementare niente da lì se Giuseppe non lo
+chiede esplicitamente.
 
 ## Stato attuale del progetto
 Per l'elenco completo e aggiornato delle funzionalità già costruite, la

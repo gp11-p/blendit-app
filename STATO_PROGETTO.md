@@ -33,7 +33,9 @@ onboarding: si apre il sito e si usa subito.
   `app/api/recipe/route.ts` per il pattern di riferimento, riusato
   identico in `app/api/vision/route.ts`.
 - **Vercel** per il deploy (auto-deploy ad ogni push su `main`).
-- Nessun database, nessuna autenticazione (vedi sezione "Cosa NON c'è").
+- **Supabase** per la persistenza (dispensa, piano pasti, lista della
+  spesa), usato in modo anonimo — niente autenticazione utente (vedi
+  sezione "Cosa NON c'è").
 
 ## Come avviare in locale
 
@@ -74,8 +76,11 @@ components/
 
 lib/
   types.ts                — Recipe, Preferences e tipi correlati
-  preferences.ts           — opzioni (TIME/DIET/DISH_TYPE/SERVINGS) + default
-  useMealPlan.ts            — hook per il piano pasti (localStorage)
+  preferences.ts           — opzioni (TIME/DIET/DISH_TYPE/SERVINGS/CALORIE) + default
+  usePantry.ts              — hook dispensa (Supabase, vedi sotto)
+  useMealPlan.ts            — hook piano pasti (Supabase; MEAL_TYPES pranzo/cena)
+  useShoppingList.ts        — hook lista della spesa (Supabase)
+  supabaseServer.ts / ownerId.ts / deviceId.ts — persistenza anonima, vedi sotto
   utils.ts                  — cn() (da shadcn)
 ```
 
@@ -87,17 +92,20 @@ lib/
    porzione, numero di porzioni (con quantità negli step scalate di
    conseguenza), ingredienti mancanti, passi.
 3. **Preferenze** (pannello "Personalizza", collassato di default):
-   tempo massimo, dieta (multi-select), porzioni, tipo di piatto. Se
-   l'utente non tocca nulla, la richiesta si comporta come senza
-   preferenze (nessun vincolo forzato nel prompt).
+   tempo massimo, dieta (multi-select), porzioni, tipo di piatto, calorie
+   massime per porzione. Se l'utente non tocca nulla, la richiesta si
+   comporta come senza preferenze (nessun vincolo forzato nel prompt).
 4. **Rigenera ricetta**: pulsante "prova un'altra ricetta" — tiene
    traccia degli ultimi 5 titoli mostrati in sessione e istruisce l'AI
    a non ripeterli.
 5. **Piano pasti settimanale**: si salva una ricetta su un giorno della
-   settimana; persiste in `localStorage` (non un vero database — resta
-   solo su quel dispositivo/browser). Pattern SSR-safe: stato iniziale
-   vuoto, popolato via `useEffect` dopo il mount per evitare mismatch
-   di hydration (vedi commento in `lib/useMealPlan.ts`).
+   settimana, con etichetta pranzo o cena (`mealType`, opzionale — le
+   ricette pianificate prima di questo campo restano senza etichetta,
+   senza errori); più ricette sullo stesso giorno sono già supportate.
+   Persiste su Supabase (non solo su quel dispositivo/browser — vedi
+   sezione persistenza sotto). Pattern SSR-safe: stato iniziale vuoto,
+   popolato via `useEffect` dopo il mount per evitare mismatch di
+   hydration (vedi commento in `lib/useMealPlan.ts`).
 6. **Vetrina prodotti partner**: per ogni ingrediente mancante, una
    card "presto disponibile" — nessun pulsante di acquisto, nessuna
    integrazione B2B reale dietro. Scelta deliberata per non promettere
@@ -107,10 +115,13 @@ lib/
    palette brand, mobile-first (testato sempre a 375px e 1440px).
 
 8. **Dispensa persistente** (`lib/usePantry.ts`): gli ingredienti non sono
-   più uno stato temporaneo, restano in `localStorage`. I chip "accesi"
+   più uno stato temporaneo, persistono su Supabase. I chip "accesi"
    entrano nella ricetta, quelli spenti restano in dispensa ma vengono
    ignorati. Toglie il motivo principale per cui nessuno tornava una
-   seconda volta (ridigitare ogni volta le stesse cose).
+   seconda volta (ridigitare ogni volta le stesse cose). Quando una
+   ricetta va nel piano, gli ingredienti usati per generarla si spengono
+   da soli (non si cancellano — restano in dispensa, disattivati) così
+   non vengono riproposti come disponibili per la ricetta successiva.
 9. **Lista della spesa** (`lib/useShoppingList.ts`): unisce le
    `missingIngredients` di tutte le ricette pianificate. Spuntando un
    articolo, questo finisce in dispensa — è così che si chiude il ciclo
@@ -132,16 +143,30 @@ lib/
     dai log grezzi si legge subito chi sta tornando.
 15. **Pagina privacy** (`app/privacy/page.tsx`): necessaria prima di far
     testare l'app a persone reali in UE.
+16. **Persistenza vera su Supabase**: dispensa, piano pasti e lista della
+    spesa non vivono più solo in `localStorage` — sopravvivono anche alla
+    cancellazione dei dati del browser. Restano anonime (id per
+    dispositivo, non un account); migrazione una tantum dai vecchi dati
+    locali al primo caricamento dopo l'aggiornamento. Vedi
+    `supabase/schema.sql` e i decisioni sopra.
+17. **Limite di calorie** (preferenza "Calorie massime" in "Personalizza"):
+    stesso pattern di tempo/porzioni, vincolo passato al prompt AI.
+18. **Pranzo o cena nel piano**: ogni pasto pianificato porta un'etichetta
+    opzionale (`mealType`); si possono già pianificare più pasti sullo
+    stesso giorno.
 
 ## Decisioni architetturali importanti (il "perché")
 
 - **Structured output via Zod invece di "chiedi JSON nel prompt"**: più
   affidabile, niente parsing fragile di testo che potrebbe contenere
   markdown o prosa extra. Vedi il pattern in `app/api/recipe/route.ts`.
-- **Niente database, niente auth**: per scelta esplicita (vedi
-  CLAUDE.md), rimandato a dopo la demo investitori. Il piano pasti usa
-  `localStorage` come compromesso leggero — è persistenza, ma non un
-  backend.
+- **Supabase sì, auth no**: dispensa, piano pasti e lista della spesa
+  vivono su Supabase (persistenza vera, sopravvive alla cancellazione
+  dei dati del browser), ma restano anonime — un id per dispositivo
+  (`lib/deviceId.ts`), non un account. RLS attiva senza policy su ogni
+  tabella: solo la service-role key (server-only) può leggere/scrivere,
+  vedi `supabase/schema.sql`. Il login vero resta rimandato (vedi
+  CLAUDE.md), come passo successivo separato della roadmap.
 - **Vetrina B2B non funzionale**: costruire un pulsante "Acquista"
   vero senza un partner commerciale reale rischierebbe di far credere
   a un investitore che quella partnership esista già.
@@ -154,10 +179,10 @@ lib/
 
 ## Cosa NON c'è (di proposito, per ora)
 
-Autenticazione utente, database vero/backend persistente, pagamenti o
-integrazioni B2B funzionanti, lato fashion, internazionalizzazione
-(solo italiano). Vedi CLAUDE.md → "Cosa NON fare" per la lista
-aggiornata e il perché di ciascuna.
+Autenticazione utente (login/account veri — c'è Supabase ma resta
+anonimo, vedi sopra), pagamenti o integrazioni B2B funzionanti, lato
+fashion, internazionalizzazione (solo italiano). Vedi CLAUDE.md →
+"Cosa NON fare" per la lista aggiornata e il perché di ciascuna.
 
 ## Deploy
 
@@ -168,15 +193,10 @@ aggiornata e il perché di ciascuna.
 
 ## Idee proposte ma non ancora costruite
 
-Discusse con l'utente, in attesa di priorità:
-- Sostituzione ingrediente mancante ("non hai la mozzarella? prova con...")
-- Condividi/copia la ricetta (Web Share API o clipboard, no backend)
-- Lista della spesa generata dal piano pasti settimanale (unisce le
-  `missingIngredients` di tutte le ricette pianificate — si collega
-  bene sia al piano pasti che alla vetrina prodotti già esistenti)
-- Modalità "cucina" — un passo alla volta con timer
-- Valutazione rapida della ricetta (👍/👎, solo in sessione, per
-  affinare il "prova un'altra")
+Vivono in `IDEE.md` in questa stessa cartella (il "quaderno delle idee":
+cosa è già deciso, cosa è parcheggiato e perché, cosa è stato scartato e
+perché). Non implementare nulla da lì senza che Giuseppe lo chieda
+esplicitamente.
 
 ## Da fare prima di far testare l'app (checklist)
 
@@ -196,6 +216,6 @@ Discusse con l'utente, in attesa di priorità:
 
 - Fase 8 della guida originale: preparazione demo investitori (test da
   altro dispositivo, video di backup, ricette "sicure" pre-testate)
-- Roadmap "dopo la demo" (guida, sezione 14): Supabase per
-  persistenza vera → login → app Flutter → lato fashion → B2B reale →
+- Roadmap "dopo la demo" (guida, sezione 14): Supabase per persistenza
+  vera → **fatto** → login → app Flutter → lato fashion → B2B reale →
   analytics → push notifications. Un progetto alla volta.

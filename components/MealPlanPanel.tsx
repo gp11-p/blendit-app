@@ -64,7 +64,14 @@ export function MealPlanPanel({
                       key={meal.id}
                       className="flex items-center justify-between gap-2 rounded-lg bg-muted px-3 py-1.5 text-sm text-foreground"
                     >
-                      <span>{meal.recipe.title}</span>
+                      <span>
+                        {meal.mealType && (
+                          <span className="mr-1.5 text-xs font-semibold text-primary">
+                            {meal.mealType}
+                          </span>
+                        )}
+                        {meal.recipe.title}
+                      </span>
                       <button
                         type="button"
                         onClick={() => onRemove(meal.id)}

@@ -26,6 +26,7 @@ create table meal_plan (
   owner_id text not null,
   day text not null,
   recipe jsonb not null,             -- l'intero oggetto Recipe, letto/scritto in blocco
+  meal_type text,                    -- "Pranzo" | "Cena"; NULL se non specificato
   created_at timestamptz not null default now()
 );
 create index meal_plan_owner_id_idx on meal_plan (owner_id);

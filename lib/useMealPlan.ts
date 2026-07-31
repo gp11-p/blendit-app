@@ -9,10 +9,15 @@ import type { Recipe } from "./types";
 // lib/usePantry.ts per il ragionamento completo su persistenza/migrazione/
 // degrado, identico qui.
 
+export const MEAL_TYPES = ["Pranzo", "Cena"] as const;
+export type MealType = (typeof MEAL_TYPES)[number];
+
 export interface PlannedMeal {
   id: string;
   day: string;
   recipe: Recipe;
+  /** Assente sulle righe salvate prima dell'introduzione di questo campo. */
+  mealType?: MealType;
 }
 
 export const DAYS = [
@@ -102,15 +107,23 @@ export function useMealPlan() {
     };
   }, []);
 
-  const addMeal = useCallback((day: string, recipe: Recipe) => {
-    const meal: PlannedMeal = { id: `${day}-${crypto.randomUUID()}`, day, recipe };
-    setPlan((prev) => [...prev, meal]);
-    void fetch(API_URL, {
-      method: "POST",
-      headers: deviceHeaders(true),
-      body: JSON.stringify(meal),
-    }).catch(() => {});
-  }, []);
+  const addMeal = useCallback(
+    (day: string, recipe: Recipe, mealType: MealType) => {
+      const meal: PlannedMeal = {
+        id: `${day}-${crypto.randomUUID()}`,
+        day,
+        recipe,
+        mealType,
+      };
+      setPlan((prev) => [...prev, meal]);
+      void fetch(API_URL, {
+        method: "POST",
+        headers: deviceHeaders(true),
+        body: JSON.stringify(meal),
+      }).catch(() => {});
+    },
+    []
+  );
 
   const removeMeal = useCallback((id: string) => {
     setPlan((prev) => prev.filter((meal) => meal.id !== id));

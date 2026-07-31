@@ -19,10 +19,16 @@ interface MealPlanRow {
   id: string;
   day: string;
   recipe: Recipe;
+  meal_type: string | null;
 }
 
 function toPlannedMeal(row: MealPlanRow): PlannedMeal {
-  return { id: row.id, day: row.day, recipe: row.recipe };
+  return {
+    id: row.id,
+    day: row.day,
+    recipe: row.recipe,
+    mealType: (row.meal_type ?? undefined) as PlannedMeal["mealType"],
+  };
 }
 
 function guard(request: Request) {
@@ -70,7 +76,7 @@ export async function GET(request: Request) {
 
   const { data, error } = await supabase
     .from("meal_plan")
-    .select("id, day, recipe")
+    .select("id, day, recipe, meal_type")
     .eq("owner_id", ownerId)
     .order("created_at", { ascending: true });
 
@@ -93,6 +99,7 @@ export async function POST(request: Request) {
   const id: unknown = body?.id;
   const day: unknown = body?.day;
   const recipe: unknown = body?.recipe;
+  const mealTypeRaw: unknown = body?.mealType;
 
   if (
     typeof id !== "string" ||
@@ -106,9 +113,17 @@ export async function POST(request: Request) {
     );
   }
 
+  // Controllo diretto invece di importare MEAL_TYPES da lib/useMealPlan.ts:
+  // quel file e' "use client", e in questo progetto le route API importano
+  // da li' solo *tipi* (vedi l'import di PlannedMeal sopra), mai valori a
+  // runtime - coerente con come anche "day" non viene ri-validato contro
+  // DAYS lato server.
+  const mealType: "Pranzo" | "Cena" | null =
+    mealTypeRaw === "Pranzo" || mealTypeRaw === "Cena" ? mealTypeRaw : null;
+
   const { error } = await supabase
     .from("meal_plan")
-    .insert({ id, owner_id: ownerId, day, recipe });
+    .insert({ id, owner_id: ownerId, day, recipe, meal_type: mealType });
 
   if (error) {
     return NextResponse.json(

@@ -8,6 +8,7 @@ interface PantryPanelProps {
   items: PantryItem[];
   onToggle: (name: string) => void;
   onRemove: (name: string) => void;
+  onQuantityChange: (name: string, delta: number) => void;
   onSetAllSelected: (selected: boolean) => void;
 }
 
@@ -24,12 +25,17 @@ export function PantryPanel({
   items,
   onToggle,
   onRemove,
+  onQuantityChange,
   onSetAllSelected,
 }: PantryPanelProps) {
   if (items.length === 0) return null;
 
   const selectedCount = items.filter((item) => item.selected).length;
-  const allSelected = selectedCount === items.length;
+  // Un ingrediente tracciato a quota zero non è mai "selezionabile": va
+  // escluso dal denominatore, altrimenti il pulsante resterebbe bloccato su
+  // "Usa tutto" anche a dispensa piena.
+  const selectableCount = items.filter((item) => item.quantity !== 0).length;
+  const allSelected = selectableCount > 0 && selectedCount === selectableCount;
 
   return (
     <div className="flex flex-col gap-2">
@@ -57,8 +63,10 @@ export function PantryPanel({
             key={item.name}
             label={item.name}
             selected={item.selected}
+            quantity={item.quantity}
             onToggle={() => onToggle(item.name)}
             onRemove={() => onRemove(item.name)}
+            onQuantityChange={(delta) => onQuantityChange(item.name, delta)}
           />
         ))}
       </div>

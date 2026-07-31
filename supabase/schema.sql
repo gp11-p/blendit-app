@@ -16,6 +16,7 @@ create table pantry_items (
   normalized_name text not null,
   name text not null,
   selected boolean not null default true,
+  quantity integer check (quantity is null or quantity >= 0), -- conteggio per ingredienti numerabili; NULL = non tracciato
   added_at timestamptz not null default now(),
   primary key (owner_id, normalized_name)
 );

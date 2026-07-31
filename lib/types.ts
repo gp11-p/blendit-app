@@ -1,3 +1,8 @@
+export interface NamedQuantity {
+  name: string;
+  quantity: number;
+}
+
 export interface Recipe {
   title: string;
   time: string;
@@ -5,6 +10,8 @@ export interface Recipe {
   calories: number;
   servings: number;
   missingIngredients: string[];
+  /** Solo per ingredienti forniti, numerabili, e usati davvero da questa ricetta. */
+  usedQuantities: NamedQuantity[];
   steps: string[];
 }
 

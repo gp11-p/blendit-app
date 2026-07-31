@@ -91,6 +91,24 @@ export function RecipeFinder() {
     resetRecipe();
   }
 
+  // Una sostituzione riuscita aggiorna i passi e toglie l'ingrediente dai
+  // mancanti: altrimenti resterebbe comunque nella lista della spesa una
+  // volta pianificata la ricetta, anche se ormai esiste un modo per farne a
+  // meno (vedi lib/useShoppingList.ts, che legge missingIngredients).
+  function handleSubstituted(missingIngredient: string, revisedSteps: string[]) {
+    setRecipe((prev) =>
+      prev
+        ? {
+            ...prev,
+            steps: revisedSteps,
+            missingIngredients: prev.missingIngredients.filter(
+              (name) => name !== missingIngredient
+            ),
+          }
+        : prev
+    );
+  }
+
   async function handleSearch(isRegeneration: boolean) {
     setLoading(true);
     setError(null);
@@ -215,7 +233,12 @@ export function RecipeFinder() {
 
       {!loading && !error && recipe && (
         <div className="flex flex-col gap-3 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
-          <RecipeCard recipe={recipe} />
+          <RecipeCard
+            key={`recipe-${recipeKey}`}
+            recipe={recipe}
+            pantryNames={pantry.items.map((item) => item.name)}
+            onSubstituted={handleSubstituted}
+          />
           {recipe.missingIngredients.length > 0 && (
             <PartnerProductsPreview ingredients={recipe.missingIngredients} />
           )}

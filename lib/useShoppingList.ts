@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { deviceHeaders } from "./deviceId";
 import type { PlannedMeal } from "./useMealPlan";
 
 // La lista della spesa: unisce gli ingredienti mancanti di tutte le ricette
@@ -14,8 +15,13 @@ import type { PlannedMeal } from "./useMealPlan";
 //
 // Quando spunti un articolo, quello finisce in dispensa: è così che il
 // cerchio si chiude senza che l'utente debba ridigitare nulla.
+//
+// Dove vivono i dati: su Supabase (vedi app/api/shopping-checked/route.ts),
+// non solo su questo dispositivo - vedi lib/usePantry.ts per il ragionamento
+// completo su persistenza/migrazione/degrado, identico qui.
 
 const STORAGE_KEY = "blendit-shopping-checked";
+const API_URL = "/api/shopping-checked";
 
 export interface ShoppingItem {
   name: string;
@@ -28,33 +34,81 @@ function normalize(name: string): string {
   return name.trim().toLowerCase();
 }
 
+function readLegacyChecked(): string[] {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed)
+      ? parsed.filter((k): k is string => typeof k === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Migrazione una tantum, stesso spirito di lib/usePantry.ts. Qui "niente da
+ * migrare" e "un array vuoto legittimo" sono la stessa cosa: non c'è nulla da
+ * perdere in entrambi i casi.
+ */
+async function migrateLegacyChecked(): Promise<string[] | null> {
+  const legacyKeys = readLegacyChecked();
+  if (legacyKeys.length === 0) return null;
+
+  const res = await fetch(API_URL, {
+    method: "PATCH",
+    headers: deviceHeaders(true),
+    body: JSON.stringify({ checkedKeys: legacyKeys }),
+  });
+  if (!res.ok) return null;
+
+  window.localStorage.removeItem(STORAGE_KEY);
+  return legacyKeys;
+}
+
 export function useShoppingList(plan: PlannedMeal[]) {
   const [checkedKeys, setCheckedKeys] = useState<string[]>([]);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed: unknown = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          // eslint-disable-next-line react-hooks/set-state-in-effect
-          setCheckedKeys(parsed.filter((k): k is string => typeof k === "string"));
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const res = await fetch(API_URL, { headers: deviceHeaders() });
+        if (!res.ok) throw new Error("shopping-checked fetch failed");
+        const data = await res.json();
+        let serverChecked: string[] | null = data.checkedKeys;
+
+        if (serverChecked === null) {
+          serverChecked = (await migrateLegacyChecked()) ?? [];
         }
+
+        if (!cancelled) setCheckedKeys(serverChecked);
+      } catch {
+        if (!cancelled) setCheckedKeys(readLegacyChecked());
+      } finally {
+        if (!cancelled) setLoaded(true);
       }
-    } catch {
-      // Dati corrotti: si riparte con nessun articolo spuntato.
     }
-    setLoaded(true);
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
+  // Sincronizza ogni cambio (spunte, azzeramento, la potatura sotto) verso
+  // Supabase. Fire-and-forget: se fallisce, le spunte restano valide per
+  // questa sessione ma non sopravvivono a un refresh.
   useEffect(() => {
     if (!loaded) return;
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(checkedKeys));
-    } catch {
-      // Storage pieno: le spunte restano valide per questa sessione.
-    }
+    void fetch(API_URL, {
+      method: "PATCH",
+      headers: deviceHeaders(true),
+      body: JSON.stringify({ checkedKeys }),
+    }).catch(() => {});
   }, [checkedKeys, loaded]);
 
   // Se un ingrediente spuntato non è più richiesto da nessuna ricetta nel

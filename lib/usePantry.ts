@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { deviceHeaders } from "./deviceId";
 
 // La dispensa: l'elenco di cosa hai in casa, che resta tra una visita e
 // l'altra.
@@ -9,11 +10,13 @@ import { useCallback, useEffect, useState } from "react";
 // e ridigiti gli stessi ingredienti — motivo numero uno per cui nessuno torna
 // una seconda volta. Con la dispensa, riaprire Blendit costa zero fatica.
 //
-// Dove vivono i dati: solo su questo dispositivo (localStorage). Nessun
-// account, nessun server, nessun profilo. È una scelta deliberata: costa
-// zero, non ci sono obblighi GDPR pesanti, e "i tuoi dati restano sul tuo
-// telefono" è una posizione che i concorrenti grandi non possono occupare.
-// Il limite è che la dispensa non si sincronizza tra telefono e computer.
+// Dove vivono i dati: su Supabase (vedi app/api/pantry/route.ts), non su
+// questo dispositivo soltanto — sopravvive alla cancellazione dei dati del
+// browser. Nessun account però: l'identificatore è un id anonimo per
+// dispositivo (lib/deviceId.ts), non un vero login. Se Supabase non risponde
+// (non configurato, rete assente), l'app degrada esattamente come si
+// comportava prima di questa migrazione: stato valido per la sessione, ma
+// non sopravvive a un refresh.
 
 export interface PantryItem {
   name: string;
@@ -23,6 +26,7 @@ export interface PantryItem {
 }
 
 const STORAGE_KEY = "blendit-pantry";
+const API_URL = "/api/pantry";
 
 /** Oltre questo numero la dispensa diventa ingestibile da usare a mano. */
 const MAX_ITEMS = 60;
@@ -41,37 +45,95 @@ function isValidItem(value: unknown): value is PantryItem {
   );
 }
 
+function readLegacyPantry(): PantryItem[] {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter(isValidItem) : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Migrazione una tantum: se Supabase non ha ancora righe per questo
+ * dispositivo ma il vecchio localStorage sì, le invia una volta sola.
+ * Idempotente - se fallisce, ritenta al prossimo mount senza duplicare nulla
+ * (l'inserimento è deduplicato per nome normalizzato lato server).
+ */
+async function migrateLegacyPantry(): Promise<PantryItem[] | null> {
+  const legacyItems = readLegacyPantry();
+  if (legacyItems.length === 0) return null;
+
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: deviceHeaders(true),
+    body: JSON.stringify({
+      names: legacyItems.map((item) => item.name),
+      selected: true,
+    }),
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+
+  // Il POST di migrazione segna tutto come selected: true; ripristiniamo qui
+  // gli articoli che l'utente aveva disattivato prima della migrazione (di
+  // solito nessuno o pochissimi - un ciclo semplice basta).
+  const deselected = legacyItems.filter((item) => !item.selected);
+  for (const item of deselected) {
+    await fetch(API_URL, {
+      method: "PATCH",
+      headers: deviceHeaders(true),
+      body: JSON.stringify({ name: item.name, selected: false }),
+    }).catch(() => {});
+  }
+
+  window.localStorage.removeItem(STORAGE_KEY);
+
+  if (deselected.length === 0) return data.items;
+  // Rispecchia localmente le disattivazioni appena ripristinate, invece di
+  // fare un'altra chiamata GET solo per questo.
+  const deselectedKeys = new Set(deselected.map((item) => normalize(item.name)));
+  return (data.items as PantryItem[]).map((item) =>
+    deselectedKeys.has(normalize(item.name)) ? { ...item, selected: false } : item
+  );
+}
+
 export function usePantry() {
   const [items, setItems] = useState<PantryItem[]>([]);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    // Come in useMealPlan: si legge dopo il primo render, non durante, perché
-    // localStorage non esiste sul server e leggerlo prima causerebbe un
-    // mismatch tra l'HTML del server e quello del client.
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed: unknown = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          // eslint-disable-next-line react-hooks/set-state-in-effect
-          setItems(parsed.filter(isValidItem));
-        }
-      }
-    } catch {
-      // Dati corrotti o storage non disponibile: si parte da una dispensa vuota.
-    }
-    setLoaded(true);
-  }, []);
+    let cancelled = false;
 
-  useEffect(() => {
-    if (!loaded) return;
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-    } catch {
-      // Storage pieno: la dispensa resta valida per questa sessione.
+    async function load() {
+      try {
+        const res = await fetch(API_URL, { headers: deviceHeaders() });
+        if (!res.ok) throw new Error("pantry fetch failed");
+        const data = await res.json();
+        let serverItems: PantryItem[] = data.items;
+
+        if (serverItems.length === 0) {
+          const migrated = await migrateLegacyPantry();
+          if (migrated) serverItems = migrated;
+        }
+
+        if (!cancelled) setItems(serverItems);
+      } catch {
+        // Supabase non raggiungibile o non configurato: degradiamo leggendo
+        // il vecchio localStorage, come prima di questa migrazione.
+        if (!cancelled) setItems(readLegacyPantry());
+      } finally {
+        if (!cancelled) setLoaded(true);
+      }
     }
-  }, [items, loaded]);
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const addMany = useCallback(
     (names: string[], options?: { selected?: boolean }) => {
@@ -120,6 +182,17 @@ export function usePantry() {
         return additions.length === 0 ? reactivated : [...reactivated, ...additions];
       });
 
+      // Sincronizza con Supabase in background: se fallisce, la dispensa
+      // resta valida per questa sessione ma non sopravvive a un refresh,
+      // stesso spirito del catch su localStorage pieno di prima.
+      if (cleaned.length > 0) {
+        void fetch(API_URL, {
+          method: "POST",
+          headers: deviceHeaders(true),
+          body: JSON.stringify({ names: cleaned, selected }),
+        }).catch(() => {});
+      }
+
       return droppedCount;
     },
     []
@@ -133,26 +206,46 @@ export function usePantry() {
   const remove = useCallback((name: string) => {
     const key = normalize(name);
     setItems((prev) => prev.filter((item) => normalize(item.name) !== key));
+    void fetch(`${API_URL}?name=${encodeURIComponent(name)}`, {
+      method: "DELETE",
+      headers: deviceHeaders(),
+    }).catch(() => {});
   }, []);
 
   /** Attiva/disattiva un ingrediente per la prossima ricetta senza cancellarlo. */
   const toggle = useCallback((name: string) => {
     const key = normalize(name);
+    let nextSelected: boolean | null = null;
     setItems((prev) =>
-      prev.map((item) =>
-        normalize(item.name) === key
-          ? { ...item, selected: !item.selected }
-          : item
-      )
+      prev.map((item) => {
+        if (normalize(item.name) !== key) return item;
+        nextSelected = !item.selected;
+        return { ...item, selected: nextSelected };
+      })
     );
+    if (nextSelected !== null) {
+      void fetch(API_URL, {
+        method: "PATCH",
+        headers: deviceHeaders(true),
+        body: JSON.stringify({ name, selected: nextSelected }),
+      }).catch(() => {});
+    }
   }, []);
 
   const setAllSelected = useCallback((selected: boolean) => {
     setItems((prev) => prev.map((item) => ({ ...item, selected })));
+    void fetch(API_URL, {
+      method: "PATCH",
+      headers: deviceHeaders(true),
+      body: JSON.stringify({ all: true, selected }),
+    }).catch(() => {});
   }, []);
 
   const clear = useCallback(() => {
     setItems([]);
+    void fetch(API_URL, { method: "DELETE", headers: deviceHeaders() }).catch(
+      () => {}
+    );
   }, []);
 
   const selectedNames = items

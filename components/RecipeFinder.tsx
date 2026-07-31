@@ -20,7 +20,7 @@ import { track } from "@/lib/analytics";
 import { DEFAULT_PREFERENCES } from "@/lib/preferences";
 import { useMealPlan } from "@/lib/useMealPlan";
 import { usePantry } from "@/lib/usePantry";
-import type { Preferences, Recipe } from "@/lib/types";
+import type { NamedQuantity, Preferences, Recipe } from "@/lib/types";
 
 export function RecipeFinder() {
   // Gli ingredienti non vivono più in uno stato temporaneo: stanno in
@@ -65,8 +65,8 @@ export function RecipeFinder() {
     }
   }
 
-  function handlePhotoIngredients(found: string[]) {
-    const dropped = pantry.addMany(found);
+  function handlePhotoIngredients(found: string[], quantities: NamedQuantity[]) {
+    const dropped = pantry.addMany(found, { quantities });
     track("photo_used", { found: found.length });
     resetRecipe();
     if (dropped > 0) {
@@ -83,6 +83,11 @@ export function RecipeFinder() {
 
   function handleToggle(ingredient: string) {
     pantry.toggle(ingredient);
+    resetRecipe();
+  }
+
+  function handleQuantityChange(ingredient: string, delta: number) {
+    pantry.adjustQuantity(ingredient, delta);
     resetRecipe();
   }
 
@@ -165,6 +170,7 @@ export function RecipeFinder() {
           items={pantry.items}
           onToggle={handleToggle}
           onRemove={handleRemove}
+          onQuantityChange={handleQuantityChange}
           onSetAllSelected={(selected) => {
             pantry.setAllSelected(selected);
             resetRecipe();
@@ -220,12 +226,13 @@ export function RecipeFinder() {
               recipe={recipe}
               onAdd={(day, planned, mealType) => {
                 addMeal(day, planned, mealType);
-                // Gli ingredienti usati per questa ricetta si considerano
-                // consumati: si disattivano (non si cancellano) così non
-                // vengono riproposti per la prossima ricetta. Niente
-                // resetRecipe() qui: la ricetta appena pianificata deve
-                // restare a schermo come conferma.
-                pantry.deselectMany(ingredients);
+                // Gli ingredienti forniti e tracciati che la ricetta ha
+                // riportato di aver usato vengono decrementati (restano
+                // visibili con la quantità rimasta); tutto il resto si
+                // comporta come prima - si disattiva senza cancellarsi.
+                // Niente resetRecipe() qui: la ricetta appena pianificata
+                // deve restare a schermo come conferma.
+                pantry.applyRecipeUsage(ingredients, recipe.usedQuantities);
                 track("meal_planned");
               }}
             />

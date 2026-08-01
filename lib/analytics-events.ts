@@ -12,6 +12,7 @@ export const TRACKED_EVENTS = [
   "app_opened",
   "ingredient_added",
   "photo_used",
+  "craving_used",
   "recipe_generated",
   "recipe_regenerated",
 

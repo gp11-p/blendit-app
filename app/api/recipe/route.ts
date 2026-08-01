@@ -125,6 +125,12 @@ function buildPreferencesInstructions(preferences: Preferences): string {
   return `\n\nPreferenze dell'utente per questa ricetta:\n${lines.join("\n")}`;
 }
 
+function buildCravingInstruction(craving: string): string {
+  if (craving.length === 0) return "";
+
+  return `\n\nL'utente in questo momento ha voglia di: "${craving}". Tienine conto nella scelta del piatto, ma resta comunque realizzabile con gli ingredienti disponibili che ti verranno indicati: se sono in conflitto, gli ingredienti disponibili restano il vincolo principale.`;
+}
+
 function buildVariationInstruction(previousTitles: string[]): string {
   if (previousTitles.length === 0) return "";
 
@@ -187,6 +193,11 @@ export async function POST(request: Request) {
         .filter((item): item is string => typeof item === "string")
         .slice(-5)
     : [];
+  const cravingRaw =
+    "craving" in bodyObject
+      ? (bodyObject as { craving: unknown }).craving
+      : undefined;
+  const craving = typeof cravingRaw === "string" ? cravingRaw.trim().slice(0, 120) : "";
 
   if (
     !Array.isArray(ingredients) ||
@@ -210,6 +221,7 @@ export async function POST(request: Request) {
       system:
         SYSTEM_PROMPT +
         buildPreferencesInstructions(preferences) +
+        buildCravingInstruction(craving) +
         buildVariationInstruction(previousTitles),
       messages: [
         {

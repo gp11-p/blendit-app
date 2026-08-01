@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { AddToPlanButton } from "@/components/AddToPlanButton";
+import { CravingInput } from "@/components/CravingInput";
 import { IngredientInput } from "@/components/IngredientInput";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { MealPlanPanel } from "@/components/MealPlanPanel";
@@ -32,6 +33,7 @@ export function RecipeFinder() {
   const [preferences, setPreferences] = useState<Preferences>(
     DEFAULT_PREFERENCES
   );
+  const [craving, setCraving] = useState("");
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   // Identifica la ricetta a schermo indipendentemente dal titolo (due
   // ricette diverse possono avere lo stesso titolo) e senza il limite di
@@ -60,7 +62,7 @@ export function RecipeFinder() {
     resetRecipe();
     if (dropped > 0) {
       setError(
-        "Dispensa piena (max 60 ingredienti): alcuni non sono stati aggiunti."
+        "Dispensa piena (max 150 ingredienti): alcuni non sono stati aggiunti."
       );
     }
   }
@@ -71,7 +73,7 @@ export function RecipeFinder() {
     resetRecipe();
     if (dropped > 0) {
       setError(
-        "Dispensa piena (max 60 ingredienti): alcuni non sono stati aggiunti."
+        "Dispensa piena (max 150 ingredienti): alcuni non sono stati aggiunti."
       );
     }
   }
@@ -117,7 +119,7 @@ export function RecipeFinder() {
       const res = await fetch("/api/recipe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ingredients, preferences, previousTitles }),
+        body: JSON.stringify({ ingredients, preferences, previousTitles, craving }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -138,6 +140,9 @@ export function RecipeFinder() {
           preferences.servings !== null ||
           preferences.maxCalories !== null,
       });
+      // Solo il segnale d'uso, mai il testo libero digitato: evita di
+      // raccogliere frasi scritte dalla persona anche in forma aggregata.
+      if (craving.trim().length > 0) track("craving_used");
 
       // Segnale commerciale: quali ingredienti mancano più spesso alle
       // persone. È il dato che rende concreta una partnership con un
@@ -198,6 +203,8 @@ export function RecipeFinder() {
       </div>
 
       <PreferencesPanel preferences={preferences} onChange={setPreferences} />
+
+      <CravingInput value={craving} onChange={setCraving} />
 
       <div className="flex flex-col gap-2">
         <Button

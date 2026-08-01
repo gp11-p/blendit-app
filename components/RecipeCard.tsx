@@ -109,7 +109,7 @@ export function RecipeCard({
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
             <span>⏱ {recipe.time}</span>
             <span>📊 {recipe.difficulty}</span>
-            <span>🔥 {recipe.calories} kcal</span>
+            <span>🔥 {recipe.calories} kcal a persona</span>
             <span>
               👥 {recipe.servings}{" "}
               {recipe.servings === 1 ? "persona" : "persone"}

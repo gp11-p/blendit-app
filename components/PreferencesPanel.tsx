@@ -65,7 +65,7 @@ export function PreferencesPanel({
 
         <div>
           <p className="mb-2 text-xs font-medium text-muted-foreground">
-            Calorie massime
+            Calorie massime a persona
           </p>
           <div className="flex flex-wrap gap-2">
             {CALORIE_OPTIONS.map((option) => (

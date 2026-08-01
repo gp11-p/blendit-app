@@ -238,6 +238,22 @@ lib/
       alla stessa "generazione" di dati, la key deve comunque essere
       univoca tra loro, non solo stabile nel tempo — un valore numerico
       condiviso nudo è un rischio concreto, non solo teorico.
+22. **Chiarezza kcal + ingredienti che si "sdoppiano"** (ripresa Fase 8,
+    dettagli notati preparando la demo investitori): le kcal erano già
+    calcolate per persona in `app/api/recipe/route.ts` (non totali per
+    l'intero piatto), ma l'interfaccia non lo diceva da nessuna parte —
+    corretto in `components/PreferencesPanel.tsx` ("Calorie massime a
+    persona") e `components/RecipeCard.tsx` ("🔥 X kcal a persona"), nessuna
+    modifica al prompt. Separatamente, testando dal vivo la ricetta segnava
+    a volte "Olio" o "Sale"/"Pepe" come mancanti anche quando in dispensa
+    c'erano "olio d'oliva" o "Sale e pepe" — l'AI non collegava nomi
+    generici e specifici tra loro. Corretto con un'istruzione esplicita nel
+    prompt di `app/api/recipe/route.ts` ("controlla se è già coperto da un
+    nome leggermente diverso"), verificato con chiamate AI reali
+    riproducendo entrambi i casi. **Pattern da riusare**: quando serve che
+    l'AI confronti il proprio output con l'input ricevuto (qui: due liste
+    di nomi ingrediente), un'istruzione esplicita di matching nel prompt è
+    più affidabile che sperare in un ragionamento implicito.
 
 ## Decisioni architetturali importanti (il "perché")
 

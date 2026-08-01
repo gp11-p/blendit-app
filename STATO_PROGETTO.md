@@ -254,6 +254,29 @@ lib/
     l'AI confronti il proprio output con l'input ricevuto (qui: due liste
     di nomi ingrediente), un'istruzione esplicita di matching nel prompt è
     più affidabile che sperare in un ragionamento implicito.
+23. **Consumo più realistico dopo aver pianificato** (`lib/usePantry.ts:applyRecipeUsage`):
+    prima, ogni ingrediente selezionato per generare la ricetta veniva
+    spento (a meno di avere una quantità tracciata), anche se la ricetta ne
+    usava solo un po' (una noce di burro) o non lo usava affatto (ketchup e
+    maionese selezionati ma ignorati dalla ricetta) — costringendo a
+    riaccenderli a mano ogni volta, l'attrito che la dispensa persistente
+    doveva togliere. Ora si spengono solo gli ingredienti **tracciati** che
+    arrivano davvero a zero; quelli non tracciati (farina, olio, ketchup...)
+    non vengono più spenti in automatico, punto — restano disponibili
+    finché non li spegni tu. Ha reso `deselectMany` completamente inutilizzato
+    (nessun chiamante in tutto il codebase): rimosso insieme al ramo
+    corrispondente in `app/api/pantry/route.ts` invece di lasciarlo morto.
+24. **Dispensa più capiente**: `MAX_ITEMS` da 60 a 150 (`lib/usePantry.ts` e
+    `app/api/pantry/route.ts`, tenuti in sync a mano — è un singolo numero).
+25. **"Di cosa hai voglia?"** (`components/CravingInput.tsx`): campo di
+    testo libero e opzionale, sempre visibile sopra "Trova una ricetta" (non
+    dentro "Personalizza" — l'obiettivo è ispirare, deve essere facile da
+    trovare). Il testo diventa un'istruzione aggiuntiva nel prompt di
+    `app/api/recipe/route.ts`: se in conflitto con gli ingredienti
+    disponibili, questi restano il vincolo principale. Nessuna modifica allo
+    schema della ricetta. Evento `craving_used` tracciato solo quando il
+    campo non è vuoto — **senza il testo libero digitato**, per non
+    raccogliere frasi scritte dalla persona nemmeno in forma aggregata.
 
 ## Decisioni architetturali importanti (il "perché")
 

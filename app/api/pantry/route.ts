@@ -18,7 +18,7 @@ import type { PantryItem } from "@/lib/usePantry";
 // Stesso numero di lib/usePantry.ts: oltre questa soglia la dispensa diventa
 // ingestibile da usare a mano. Tenuto in sync a mano nei due file - e' un
 // singolo numero, non vale la pena condividerlo tra client e server per questo.
-const MAX_ITEMS = 60;
+const MAX_ITEMS = 150;
 
 const PANTRY_LIMIT = 60;
 const PANTRY_WINDOW_MS = 10 * 60 * 1000;
@@ -310,21 +310,6 @@ export async function PATCH(request: Request) {
     }
     // selected === false: nessun filtro aggiuntivo, sempre valido
     // indipendentemente dalla quantità.
-  } else if (Array.isArray(body?.names)) {
-    const names: unknown[] = body.names;
-    if (
-      names.length === 0 ||
-      !names.every((n) => typeof n === "string" && n.trim().length > 0)
-    ) {
-      return NextResponse.json(
-        { error: "Elenco nomi non valido." },
-        { status: 400 }
-      );
-    }
-    query = query.in(
-      "normalized_name",
-      (names as string[]).map(normalize)
-    );
   } else {
     const name: unknown = body?.name;
     if (typeof name !== "string" || name.trim().length === 0) {

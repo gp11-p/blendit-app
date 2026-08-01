@@ -36,7 +36,7 @@ const STORAGE_KEY = "blendit-pantry";
 const API_URL = "/api/pantry";
 
 /** Oltre questo numero la dispensa diventa ingestibile da usare a mano. */
-const MAX_ITEMS = 60;
+const MAX_ITEMS = 150;
 
 /** Confronto tollerante: "Pomodori" e "pomodori " sono lo stesso ingrediente. */
 function normalize(name: string): string {
@@ -298,27 +298,6 @@ export function usePantry() {
   }, []);
 
   /**
-   * Disattiva (selected: false) un elenco di ingredienti senza cancellarli
-   * dalla dispensa - usato quando una ricetta viene aggiunta al piano, per
-   * "consumare" gli ingredienti usati senza doverli ridigitare in futuro.
-   * Stesso spirito di toggle()/setAllSelected(), ma su un sottoinsieme di nomi.
-   */
-  const deselectMany = useCallback((names: string[]) => {
-    if (names.length === 0) return;
-    const keys = new Set(names.map(normalize));
-    setItems((prev) =>
-      prev.map((item) =>
-        keys.has(normalize(item.name)) ? { ...item, selected: false } : item
-      )
-    );
-    void fetch(API_URL, {
-      method: "PATCH",
-      headers: deviceHeaders(true),
-      body: JSON.stringify({ names, selected: false }),
-    }).catch(() => {});
-  }, []);
-
-  /**
    * Aumenta o diminuisce di 1 la quantità tracciata di un ingrediente (dal
    * chip in dispensa) - se non era ancora tracciato, +1 la fa partire da 1.
    * Il nuovo valore si calcola DENTRO la updater function, leggendo lo stato
@@ -373,9 +352,13 @@ export function usePantry() {
   /**
    * Chiamata quando una ricetta viene aggiunta al piano: per ogni
    * ingrediente fornito che ha una quantità tracciata E che la ricetta ha
-   * riportato di aver usato, decrementa invece di spegnere del tutto. Per
-   * tutto il resto (non tracciato, o tracciato ma non riportato) si
-   * comporta esattamente come prima di questa funzionalità - deselectMany.
+   * riportato di aver usato, decrementa (si spegne da solo solo se arriva a
+   * zero - quello è "terminato"). Gli ingredienti NON tracciati (farina,
+   * olio, ketchup...) non vengono mai spenti qui, che siano stati usati poco
+   * o per niente: senza una quantità non possiamo sapere se sono davvero
+   * finiti, e spegnerli comunque costringerebbe a riaccenderli a mano ad ogni
+   * ricetta successiva - l'attrito che la dispensa persistente doveva
+   * togliere. Restano disponibili finché l'utente non li spegne di persona.
    */
   const applyRecipeUsage = useCallback(
     (names: string[], usedQuantities: NamedQuantity[]) => {
@@ -393,55 +376,47 @@ export function usePantry() {
           usageByKey.set(normalize(entry.name), Math.floor(entry.quantity));
         }
       }
+      if (usageByKey.size === 0) return;
 
       const suppliedKeys = new Set(names.map(normalize));
       const trackedUpdates: { name: string; quantity: number }[] = [];
-      const fallbackNames: string[] = [];
 
       for (const item of items) {
+        if (item.quantity === null) continue; // non tracciato: mai toccato qui
         const key = normalize(item.name);
         if (!suppliedKeys.has(key)) continue;
-
-        if (item.quantity === null) {
-          fallbackNames.push(item.name); // non tracciato: comportamento di sempre
-          continue;
-        }
         const usage = usageByKey.get(key);
-        if (usage === undefined) {
-          fallbackNames.push(item.name); // tracciato ma non riportato: non indoviniamo
-          continue;
-        }
+        if (usage === undefined) continue; // non riportato come usato: nessuna modifica
+
         trackedUpdates.push({
           name: item.name,
           quantity: Math.max(0, item.quantity - usage),
         });
       }
 
-      if (fallbackNames.length > 0) deselectMany(fallbackNames);
+      if (trackedUpdates.length === 0) return;
 
-      if (trackedUpdates.length > 0) {
-        const updatesByKey = new Map(
-          trackedUpdates.map((u) => [normalize(u.name), u.quantity])
-        );
-        setItems((prev) =>
-          prev.map((item) => {
-            const newQuantity = updatesByKey.get(normalize(item.name));
-            if (newQuantity === undefined) return item;
-            return {
-              ...item,
-              quantity: newQuantity,
-              selected: newQuantity === 0 ? false : item.selected,
-            };
-          })
-        );
-        void fetch(API_URL, {
-          method: "PATCH",
-          headers: deviceHeaders(true),
-          body: JSON.stringify({ quantities: trackedUpdates }),
-        }).catch(() => {});
-      }
+      const updatesByKey = new Map(
+        trackedUpdates.map((u) => [normalize(u.name), u.quantity])
+      );
+      setItems((prev) =>
+        prev.map((item) => {
+          const newQuantity = updatesByKey.get(normalize(item.name));
+          if (newQuantity === undefined) return item;
+          return {
+            ...item,
+            quantity: newQuantity,
+            selected: newQuantity === 0 ? false : item.selected,
+          };
+        })
+      );
+      void fetch(API_URL, {
+        method: "PATCH",
+        headers: deviceHeaders(true),
+        body: JSON.stringify({ quantities: trackedUpdates }),
+      }).catch(() => {});
     },
-    [items, deselectMany]
+    [items]
   );
 
   const clear = useCallback(() => {
@@ -464,7 +439,6 @@ export function usePantry() {
     remove,
     toggle,
     setAllSelected,
-    deselectMany,
     adjustQuantity,
     applyRecipeUsage,
     clear,

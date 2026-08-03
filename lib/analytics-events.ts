@@ -32,6 +32,13 @@ export const TRACKED_EVENTS = [
   "cooking_mode_started",
   "cooking_mode_completed",
 
+  // --- Demo Blendit Pro (/pro) ---
+  // Dei nutrizionisti a cui mandi il link, quanti lo aprono davvero e fino a
+  // quale dei tre atti arrivano. È la differenza tra "mi hanno detto di sì
+  // per cortesia" e "sono interessati".
+  "pro_demo_opened",
+  "pro_demo_step",
+
   // --- Segnale commerciale (modello a commissioni del pitch) ---
   // Registra solo QUALE ingrediente manca, in forma aggregata e anonima.
   // Nessun profilo per persona, nessuna pubblicità profilata: serve a capire

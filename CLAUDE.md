@@ -84,6 +84,14 @@ budget o la conformità legale del progetto.
 - Se una modifica tocca cosa viene raccolto o conservato, va aggiornata
   anche `app/privacy/page.tsx`, che oggi descrive fedelmente la realtà.
 
+## Progetto nutrizionisti (Blendit Pro)
+La direzione B2B verso i nutrizionisti è descritta in PROGETTO_NUTRIZIONISTI.md
+in questa cartella. È un'**ipotesi non ancora validata**: costruisci solo ciò
+che è marcato FASE 0. I principi non negoziabili in §2 di quel documento
+(l'AI non decide il piano, l'AI non giudica se un pasto è corretto,
+condivisione e non sorveglianza, nessun punteggio di aderenza) valgono come
+regole di progetto, non come preferenze.
+
 ## Quaderno delle idee
 Le idee di sviluppo, crescita e business — incluse quelle scartate con il
 relativo motivo — stanno in IDEE.md in questa cartella. È un magazzino, non

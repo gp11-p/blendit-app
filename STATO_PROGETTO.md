@@ -278,6 +278,38 @@ lib/
     campo non è vuoto — **senza il testo libero digitato**, per non
     raccogliere frasi scritte dalla persona nemmeno in forma aggregata.
 
+16. **Demo Blendit Pro** (`/pro`): pagina statica di vendita per i
+    nutrizionisti. Tre atti (il tuo piano → il paziente cucina → cosa vedi
+    tu), vista paziente e cruscotto affiancati sopra i 900px e alternati
+    con un selettore sotto. Nessun account, nessun salvataggio, nessuna
+    chiamata AI: i dati finti stanno tutti in `lib/proDemoData.ts`.
+    Volutamente **non collegata** dall'app consumer e non indicizzata.
+    Progetto e motivazioni in `PROGETTO_NUTRIZIONISTI.md` §5bis.
+
+26. **Import piano reale** (`/pro/demo`, `app/api/pro-demo-import/route.ts`):
+    pagina isolata (Fase 0.3 di `PROGETTO_NUTRIZIONISTI.md`) diversa da
+    `/pro` — qui si carica un PDF o una foto vera di un piano alimentare e
+    l'AI lo struttura in giorni/pasti/alimenti sul momento, per usarla
+    durante un'intervista con un nutrizionista vero. Stesso pattern Zod +
+    `zodOutputFormat` + `client.messages.parse()` delle altre rotte AI,
+    passa da `rateLimit()`. Se il documento non è un piano leggibile lo
+    dice esplicitamente (`recognized: false` + motivo), non inventa una
+    struttura. Nessun salvataggio: il file vive solo per la durata della
+    chiamata. Nessun account, nessun collegamento da `/pro` o dall'app
+    consumer, non indicizzata.
+
+27. **Personalizzazione della demo `/pro`** (`components/pro/ProPersonalizePanel.tsx`):
+    prima di mostrarla a un nutrizionista specifico, si possono impostare
+    nome del nutrizionista, nome del paziente e i tre numeri del riepilogo
+    (pasti registrati, pasti totali, sostituzioni) al posto dei valori
+    finti di default. I valori vivono nell'URL della pagina (query string),
+    non su un database: copiare il link basta a mandarlo già personalizzato.
+    Riepilogo e iniziali del paziente si ricalcolano da questi valori
+    (`lib/proDemoData.ts: buildSummary`, `buildStats`, `getInitials`) così
+    restano sempre coerenti tra loro. Il badge "Demo · dati di esempio"
+    resta comunque sempre visibile — personalizzata o no, la demo dichiara
+    di non essere reale.
+
 ## Decisioni architetturali importanti (il "perché")
 
 - **Structured output via Zod invece di "chiedi JSON nel prompt"**: più

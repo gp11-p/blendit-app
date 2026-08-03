@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import {
   DEFAULT_OVERRIDES,
   DEMO_NUTRITIONIST,
+  DEMO_RECIPE,
   DEMO_STEPS,
   type DemoOverrides,
   type DemoStepId,
@@ -73,6 +74,9 @@ export function ProDemo() {
   const [step, setStep] = useState<DemoStepId>(1);
   const [view, setView] = useState<View>("patient");
   const [logged, setLogged] = useState(false);
+  const [skipped, setSkipped] = useState(false);
+  const [stepIndex, setStepIndex] = useState<number>(DEMO_RECIPE.currentStep);
+  const [nutritionistNote, setNutritionistNote] = useState<string | null>(null);
   const [overrides, setOverridesState] = useState<DemoOverrides>(() =>
     readOverridesFromParams(searchParams)
   );
@@ -113,6 +117,19 @@ export function ProDemo() {
     // momento chiave della demo passerebbe inosservato. Su schermo largo la
     // vista sono comunque entrambe, quindi questo non cambia nulla.
     setView("dashboard");
+  }
+
+  function handleSkipMeal() {
+    // Saltare non registra niente e non muove la vista: dal lato del
+    // nutrizionista non deve succedere nulla, esattamente come nel prodotto
+    // vero. Vedi PROGETTO_NUTRIZIONISTI.md §2.3.
+    setSkipped(true);
+  }
+
+  function handleSendNote(note: string) {
+    const trimmed = note.trim();
+    if (trimmed.length === 0) return;
+    setNutritionistNote(trimmed);
   }
 
   return (
@@ -187,13 +204,24 @@ export function ProDemo() {
         <div className={cn(view !== "patient" && "max-[899px]:hidden")}>
           <ProPhone
             step={step}
+            stepIndex={stepIndex}
+            onStepIndexChange={setStepIndex}
             logged={logged}
+            skipped={skipped}
             onLogMeal={handleLogMeal}
+            onSkipMeal={handleSkipMeal}
+            nutritionistNote={nutritionistNote}
             overrides={overrides}
           />
         </div>
         <div className={cn(view !== "dashboard" && "max-[899px]:hidden")}>
-          <ProDashboard step={step} logged={logged} overrides={overrides} />
+          <ProDashboard
+            step={step}
+            logged={logged}
+            nutritionistNote={nutritionistNote}
+            onSendNote={handleSendNote}
+            overrides={overrides}
+          />
         </div>
       </div>
 

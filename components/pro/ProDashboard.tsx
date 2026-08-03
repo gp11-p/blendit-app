@@ -1,12 +1,17 @@
 "use client";
 
+import { useState } from "react";
 import {
   ArrowRight,
   Check,
+  ChevronDown,
   FileText,
   Image as ImageIcon,
   PenLine,
+  Send,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
   buildStats,
@@ -16,6 +21,7 @@ import {
   DEMO_PATIENT,
   DEMO_PLAN,
   DEMO_SOURCE_FILE,
+  DEMO_SUBSTITUTION_LOG,
   getInitials,
   type DemoOverrides,
   type DemoStepId,
@@ -24,6 +30,9 @@ import {
 interface ProDashboardProps {
   step: DemoStepId;
   logged: boolean;
+  /** La nota scritta al paziente, se già inviata nella demo. */
+  nutritionistNote: string | null;
+  onSendNote: (note: string) => void;
   overrides: DemoOverrides;
 }
 
@@ -35,7 +44,13 @@ interface ProDashboardProps {
  * secondi se un software è una cosa seria, e un'interfaccia consumer morbida
  * e colorata risponde di no.
  */
-export function ProDashboard({ step, logged, overrides }: ProDashboardProps) {
+export function ProDashboard({
+  step,
+  logged,
+  nutritionistNote,
+  onSendNote,
+  overrides,
+}: ProDashboardProps) {
   return (
     <div className="rounded-2xl bg-muted/40 p-4">
       <p className="pb-3 text-xs text-muted-foreground">Vista nutrizionista</p>
@@ -43,7 +58,13 @@ export function ProDashboard({ step, logged, overrides }: ProDashboardProps) {
       <PatientHeader patientName={overrides.patientName} />
 
       {step === 1 && <PlanImport />}
-      {step === 2 && <LiveTimeline logged={logged} />}
+      {step === 2 && (
+        <LiveTimeline
+          logged={logged}
+          nutritionistNote={nutritionistNote}
+          onSendNote={onSendNote}
+        />
+      )}
       {step === 3 && <FullReview overrides={overrides} />}
     </div>
   );
@@ -123,7 +144,15 @@ function PlanImport() {
 }
 
 /** Atto 2: la cronologia che riceve il pasto nel momento in cui viene registrato. */
-function LiveTimeline({ logged }: { logged: boolean }) {
+function LiveTimeline({
+  logged,
+  nutritionistNote,
+  onSendNote,
+}: {
+  logged: boolean;
+  nutritionistNote: string | null;
+  onSendNote: (note: string) => void;
+}) {
   const liveEntry = DEMO_DIARY.find((entry) => entry.isLive);
   const rest = DEMO_DIARY.filter((entry) => !entry.isLive);
 
@@ -147,16 +176,10 @@ function LiveTimeline({ logged }: { logged: boolean }) {
               </p>
             </div>
           </div>
-          <div className="mt-3 flex gap-2 border-t border-border pt-2.5">
+          <div className="mt-3 border-t border-border pt-2.5">
             {/* La ricompensa che funziona non è un badge: è che una persona
                 vera abbia guardato. Vedi PROGETTO_NUTRIZIONISTI.md §4.3. */}
-            <span className="inline-flex cursor-default items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground">
-              <PenLine className="size-3.5" />
-              Scrivi due righe
-            </span>
-            <span className="inline-flex cursor-default items-center rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground">
-              Vedi il piano
-            </span>
+            <NoteComposer note={nutritionistNote} onSend={onSendNote} />
           </div>
         </div>
       ) : (
@@ -192,10 +215,80 @@ function LiveTimeline({ logged }: { logged: boolean }) {
   );
 }
 
+/**
+ * Il pulsante "Scrivi due righe": si apre in un piccolo campo di testo,
+ * si invia, e compare sul telefono del paziente (vedi ProPhone.tsx). Una
+ * volta inviata la nota resta così per il resto della demo — non è pensata
+ * per essere cambiata, è il singolo momento che chiude la vendita.
+ */
+function NoteComposer({
+  note,
+  onSend,
+}: {
+  note: string | null;
+  onSend: (note: string) => void;
+}) {
+  const [composing, setComposing] = useState(false);
+  const [draft, setDraft] = useState("");
+
+  if (note) {
+    return (
+      <p className="flex items-center gap-1.5 text-xs text-accent">
+        <Check className="size-3.5" />
+        Hai scritto: «{note}»
+      </p>
+    );
+  }
+
+  if (composing) {
+    return (
+      <form
+        className="flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          onSend(draft);
+        }}
+      >
+        <Input
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="Due righe per lui/lei..."
+          maxLength={140}
+        />
+        <Button type="submit" size="sm" disabled={draft.trim().length === 0}>
+          <Send className="size-3.5" />
+          Invia
+        </Button>
+      </form>
+    );
+  }
+
+  return (
+    <div className="flex gap-2">
+      <button
+        type="button"
+        onClick={() => setComposing(true)}
+        className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground"
+      >
+        <PenLine className="size-3.5" />
+        Scrivi due righe
+      </button>
+      <span className="inline-flex cursor-default items-center rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground">
+        Vedi il piano
+      </span>
+    </div>
+  );
+}
+
 /** Atto 3: il riepilogo prima della visita e i tre numeri. */
 function FullReview({ overrides }: { overrides: DemoOverrides }) {
   const stats = buildStats(overrides);
   const substitutions = overrides.substitutions;
+  const [detailOpen, setDetailOpen] = useState(false);
+
+  const shownEntries = DEMO_SUBSTITUTION_LOG.slice(0, Math.min(3, substitutions));
+  const remaining = substitutions - shownEntries.length;
 
   return (
     <div className="flex flex-col gap-3">
@@ -209,25 +302,71 @@ function FullReview({ overrides }: { overrides: DemoOverrides }) {
       </div>
 
       <div className="grid grid-cols-3 gap-2">
-        {stats.map((stat) => (
-          <div
-            key={stat.label}
-            className="rounded-xl border border-border bg-background px-3 py-2.5"
-          >
-            <p className="text-xs leading-tight text-muted-foreground">
-              {stat.label}
-            </p>
-            <p
-              className={cn(
-                "mt-1 text-xl font-medium tabular-nums",
-                stat.highlight ? "text-accent" : "text-foreground"
-              )}
+        {stats.map((stat) => {
+          const clickable = stat.key === "substitutions" && substitutions > 0;
+          const content = (
+            <>
+              <span className="flex items-center gap-1 text-xs leading-tight text-muted-foreground">
+                {stat.label}
+                {clickable && (
+                  <ChevronDown
+                    className={cn(
+                      "size-3 transition-transform",
+                      detailOpen && "rotate-180"
+                    )}
+                  />
+                )}
+              </span>
+              <span
+                className={cn(
+                  "mt-1 text-xl font-medium tabular-nums",
+                  stat.highlight ? "text-accent" : "text-foreground"
+                )}
+              >
+                {stat.value}
+              </span>
+            </>
+          );
+
+          return clickable ? (
+            <button
+              key={stat.key}
+              type="button"
+              onClick={() => setDetailOpen((open) => !open)}
+              aria-expanded={detailOpen}
+              className="cursor-pointer rounded-xl border border-border bg-background px-3 py-2.5 text-left"
             >
-              {stat.value}
-            </p>
-          </div>
-        ))}
+              {content}
+            </button>
+          ) : (
+            <div
+              key={stat.key}
+              className="rounded-xl border border-border bg-background px-3 py-2.5"
+            >
+              {content}
+            </div>
+          );
+        })}
       </div>
+
+      {detailOpen && shownEntries.length > 0 && (
+        <div className="rounded-xl border border-border bg-background px-3 py-2.5">
+          <ul className="flex flex-col gap-1">
+            {shownEntries.map((entry, index) => (
+              <li key={index} className="text-xs leading-relaxed">
+                <span className="text-muted-foreground">{entry.day}: </span>
+                <span className="text-foreground">{entry.from}</span>
+                <span className="text-muted-foreground"> → {entry.to}</span>
+              </li>
+            ))}
+          </ul>
+          {remaining > 0 && (
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              +{remaining} altr{remaining === 1 ? "a" : "e"}, stesso motivo.
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="flex items-start gap-2 rounded-xl border border-border bg-background px-3 py-2.5">
         <Check className="mt-0.5 size-4 shrink-0 text-accent" />

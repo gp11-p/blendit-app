@@ -90,12 +90,24 @@ export function buildSummary(overrides: DemoOverrides): string {
 /** I tre numeri sotto il riepilogo, ricalcolati dai valori personalizzati. */
 export function buildStats(overrides: DemoOverrides) {
   return [
-    { label: "Pasti registrati", value: String(overrides.mealsLogged), highlight: false },
-    { label: "Sostituzioni", value: String(overrides.substitutions), highlight: false },
+    { key: "meals", label: "Pasti registrati", value: String(overrides.mealsLogged), highlight: false },
+    { key: "substitutions", label: "Sostituzioni", value: String(overrides.substitutions), highlight: false },
     // Fisso a 0 di proposito: è il punto della demo, non un dato da personalizzare.
-    { label: "Messaggi a te", value: "0", highlight: true },
+    { key: "messages", label: "Messaggi a te", value: "0", highlight: true },
   ] as const;
 }
+
+/**
+ * Esempi delle sostituzioni riassunte nel numero "Sostituzioni": mostrati
+ * aprendo quella statistica nell'atto 3, per dare profondità al riepilogo
+ * senza che il nutrizionista debba rispondere a niente — coerente con
+ * "Messaggi a te: 0". Coerenti con "tutte sui legumi" in buildSummary().
+ */
+export const DEMO_SUBSTITUTION_LOG = [
+  { day: "Lunedì", from: "Legumi 120g", to: "Ceci 120g" },
+  { day: "Mercoledì", from: "Legumi 120g", to: "Lenticchie 120g" },
+  { day: "Venerdì", from: "Legumi 120g", to: "Ceci 120g" },
+] as const;
 
 /** Il file che il nutrizionista "carica" nell'atto 1. */
 export const DEMO_SOURCE_FILE = {
@@ -138,6 +150,24 @@ export const DEMO_EXCHANGES = [
   { from: "Pasta integrale 80g", to: "Orzo 80g · Riso 80g · Patate 250g" },
   { from: "Legumi 120g", to: "Ceci 120g · Lenticchie 120g · Fagioli 120g" },
   { from: "Verdura a volontà", to: "Qualsiasi verdura di stagione" },
+] as const;
+
+/**
+ * Cosa il paziente finto ha in dispensa, usato dal chatbot dell'atto 1
+ * (`app/api/pro-demo-chat/route.ts`) per proporre solo alternative che
+ * esistono davvero — mai un ingrediente "da comprare".
+ */
+export const DEMO_PANTRY = [
+  "Orzo",
+  "Riso",
+  "Zucchine",
+  "Ceci",
+  "Lenticchie",
+  "Pomodori",
+  "Spinaci",
+  "Uova",
+  "Yogurt greco",
+  "Limoni",
 ] as const;
 
 /** La ricetta che il paziente sta cucinando nell'atto 2. */

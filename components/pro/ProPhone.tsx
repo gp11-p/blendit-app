@@ -1,6 +1,7 @@
 "use client";
 
 import { Camera, Check, Clock, MessageCircleQuestion } from "lucide-react";
+import { ProPlanChat } from "@/components/pro/ProPlanChat";
 import { cn } from "@/lib/utils";
 import {
   DEMO_PLAN,
@@ -12,9 +13,16 @@ import {
 
 interface ProPhoneProps {
   step: DemoStepId;
+  stepIndex: number;
+  onStepIndexChange: (index: number) => void;
   /** true dopo che nella demo è stato registrato il pasto. */
   logged: boolean;
+  /** true dopo che nella demo si è scelto di saltare, senza registrare nulla. */
+  skipped: boolean;
   onLogMeal: () => void;
+  onSkipMeal: () => void;
+  /** La nota scritta dal nutrizionista nel cruscotto, se già inviata. */
+  nutritionistNote: string | null;
   overrides: DemoOverrides;
 }
 
@@ -29,7 +37,17 @@ interface ProPhoneProps {
  * La cornice è un rettangolo arrotondato con un bordo sottile: niente finte
  * scocche di iPhone con la tacca, sembrano scadenti e datano la demo.
  */
-export function ProPhone({ step, logged, onLogMeal, overrides }: ProPhoneProps) {
+export function ProPhone({
+  step,
+  stepIndex,
+  onStepIndexChange,
+  logged,
+  skipped,
+  onLogMeal,
+  onSkipMeal,
+  nutritionistNote,
+  overrides,
+}: ProPhoneProps) {
   return (
     <div className="rounded-3xl bg-muted/50 p-3">
       <p className="pb-2 text-center text-xs text-muted-foreground">
@@ -39,8 +57,13 @@ export function ProPhone({ step, logged, onLogMeal, overrides }: ProPhoneProps) 
         {step === 1 && <PlanScreen nutritionistName={overrides.nutritionistName} />}
         {step === 2 && (
           <CookingScreen
+            stepIndex={stepIndex}
+            onStepIndexChange={onStepIndexChange}
             logged={logged}
+            skipped={skipped}
             onLogMeal={onLogMeal}
+            onSkipMeal={onSkipMeal}
+            nutritionistNote={nutritionistNote}
             nutritionistName={overrides.nutritionistName}
           />
         )}
@@ -77,27 +100,39 @@ function PlanScreen({ nutritionistName }: { nutritionistName: string }) {
           </li>
         ))}
       </ul>
+
+      <ProPlanChat />
     </div>
   );
 }
 
 /** Atto 2: "cuciniamo insieme", e la registrazione facoltativa del pasto. */
 function CookingScreen({
+  stepIndex,
+  onStepIndexChange,
   logged,
+  skipped,
   onLogMeal,
+  onSkipMeal,
+  nutritionistNote,
   nutritionistName,
 }: {
+  stepIndex: number;
+  onStepIndexChange: (index: number) => void;
   logged: boolean;
+  skipped: boolean;
   onLogMeal: () => void;
+  onSkipMeal: () => void;
+  nutritionistNote: string | null;
   nutritionistName: string;
 }) {
   const total = DEMO_RECIPE.steps.length;
-  const current = DEMO_RECIPE.currentStep;
+  const isLastStep = stepIndex === total - 1;
 
   return (
     <div>
       <p className="text-xs text-muted-foreground">
-        Passo {current + 1} di {total}
+        Passo {stepIndex + 1} di {total}
       </p>
       <div className="mt-2 flex gap-1">
         {DEMO_RECIPE.steps.map((_, index) => (
@@ -105,14 +140,14 @@ function CookingScreen({
             key={index}
             className={cn(
               "h-1 flex-1 rounded-full",
-              index <= current ? "bg-primary" : "bg-border"
+              index <= stepIndex ? "bg-primary" : "bg-border"
             )}
           />
         ))}
       </div>
 
       <p className="mt-4 text-lg leading-relaxed text-foreground">
-        {DEMO_RECIPE.steps[current]}
+        {DEMO_RECIPE.steps[stepIndex]}
       </p>
 
       <div className="mt-4 flex items-center gap-2 rounded-xl bg-muted px-3 py-2">
@@ -121,10 +156,46 @@ function CookingScreen({
       </div>
 
       <div className="mt-5 border-t border-border pt-4">
-        {logged ? (
-          <p className="flex items-center gap-2 text-sm text-accent">
-            <Check className="size-4" />
-            Registrato. {nutritionistName} lo vedrà.
+        {!isLastStep ? (
+          // Stesso pattern Indietro/Avanti della modalità cucina vera
+          // (components/CookingMode.tsx): la demo deve comportarsi come il
+          // prodotto, non solo assomigliargli.
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={stepIndex === 0}
+              onClick={() => onStepIndexChange(stepIndex - 1)}
+              className="flex-1 cursor-pointer rounded-full border border-border px-3 py-2 text-sm text-muted-foreground disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Indietro
+            </button>
+            <button
+              type="button"
+              onClick={() => onStepIndexChange(stepIndex + 1)}
+              className="flex-1 cursor-pointer rounded-full bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
+            >
+              Avanti
+            </button>
+          </div>
+        ) : logged ? (
+          <div>
+            <p className="flex items-center gap-2 text-sm text-accent">
+              <Check className="size-4" />
+              Registrato. {nutritionistName} lo vedrà.
+            </p>
+            {nutritionistNote && (
+              <div className="animate-in fade-in-0 slide-in-from-top-1 mt-3 rounded-xl bg-muted px-3 py-2.5 duration-500">
+                <p className="text-xs text-muted-foreground">{nutritionistName}</p>
+                <p className="mt-0.5 text-sm text-foreground">«{nutritionistNote}»</p>
+              </div>
+            )}
+          </div>
+        ) : skipped ? (
+          // Nessuna frase che faccia sentire in colpa, anche qui: è una
+          // regola di prodotto, non un dettaglio della demo. Vedi
+          // PROGETTO_NUTRIZIONISTI.md §2.3.
+          <p className="text-sm text-muted-foreground">
+            Va bene così, nessun obbligo.
           </p>
         ) : (
           <>
@@ -143,6 +214,7 @@ function CookingScreen({
                   PROGETTO_NUTRIZIONISTI.md §2.3. */}
               <button
                 type="button"
+                onClick={onSkipMeal}
                 className="flex-1 cursor-pointer rounded-full border border-border px-3 py-2 text-sm text-muted-foreground"
               >
                 Salta

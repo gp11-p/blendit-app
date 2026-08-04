@@ -32,6 +32,12 @@ export const TRACKED_EVENTS = [
   "cooking_mode_started",
   "cooking_mode_completed",
 
+  // --- Piano del nutrizionista (funzione consumer) ---
+  // Quante persone importano davvero un piano, e quante arrivano a generare
+  // una ricetta da un pasto prescritto invece di limitarsi a guardarlo.
+  "nutrition_plan_imported",
+  "plan_recipe_generated",
+
   // --- Demo Blendit Pro (/pro) ---
   // Dei nutrizionisti a cui mandi il link, quanti lo aprono davvero e fino a
   // quale dei tre atti arrivano. È la differenza tra "mi hanno detto di sì

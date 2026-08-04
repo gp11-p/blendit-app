@@ -39,3 +39,10 @@ create table shopping_checked (
   updated_at timestamptz not null default now()
 );
 alter table shopping_checked enable row level security;
+
+create table nutrition_plan (
+  owner_id text primary key,
+  days jsonb not null,               -- l'intero array di giorni/pasti strutturato dall'AI
+  imported_at timestamptz not null default now()
+);
+alter table nutrition_plan enable row level security;

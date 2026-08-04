@@ -7,6 +7,7 @@ import { CravingInput } from "@/components/CravingInput";
 import { IngredientInput } from "@/components/IngredientInput";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { MealPlanPanel } from "@/components/MealPlanPanel";
+import { NutritionPlanPanel } from "@/components/NutritionPlanPanel";
 import { PantryPanel } from "@/components/PantryPanel";
 import { PartnerProductsPreview } from "@/components/PartnerProductsPreview";
 import { PhotoInput } from "@/components/PhotoInput";
@@ -20,7 +21,9 @@ import { Button } from "@/components/ui/button";
 import { track } from "@/lib/analytics";
 import { DEFAULT_PREFERENCES } from "@/lib/preferences";
 import { useMealPlan } from "@/lib/useMealPlan";
+import { useNutritionPlan } from "@/lib/useNutritionPlan";
 import { usePantry } from "@/lib/usePantry";
+import type { PlanItem } from "@/lib/planImport";
 import type { NamedQuantity, Preferences, Recipe } from "@/lib/types";
 
 export function RecipeFinder() {
@@ -44,6 +47,7 @@ export function RecipeFinder() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { plan, addMeal, removeMeal } = useMealPlan();
+  const nutritionPlan = useNutritionPlan();
 
   // Solo gli ingredienti "accesi" in dispensa entrano nella ricetta.
   const ingredients = pantry.selectedNames;
@@ -166,6 +170,43 @@ export function RecipeFinder() {
     }
   }
 
+  // Genera una ricetta per uno specifico pasto del piano del nutrizionista,
+  // invece che liberamente dagli ingredienti in dispensa: stessa card,
+  // stesso piano pasti, stessa lista della spesa a valle, cambia solo come
+  // nasce la ricetta (vedi app/api/plan-recipe/route.ts).
+  async function handlePlanRecipe(mealName: string, items: PlanItem[]) {
+    setLoading(true);
+    setError(null);
+    setRecipe(null);
+    try {
+      const res = await fetch("/api/plan-recipe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mealName,
+          mealItems: items,
+          pantryItems: ingredients,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "");
+
+      const found = data as Recipe;
+      setRecipe(found);
+      setRecipeKey((n) => n + 1);
+      track("plan_recipe_generated", { meal: mealName.slice(0, 40) });
+    } catch (err) {
+      const serverMessage = err instanceof Error ? err.message : "";
+      setError(
+        serverMessage.length > 0
+          ? serverMessage
+          : "Non sono riuscito a generare la ricetta. Riprova."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
   const canSearch = ingredients.length >= 2 && !loading;
   const needsMoreSelected =
     !loading && pantry.items.length > 0 && ingredients.length < 2;
@@ -185,6 +226,16 @@ export function RecipeFinder() {
         plan={plan}
         onRemove={removeMeal}
         onItemBought={(name) => pantry.addMany([name])}
+      />
+
+      <NutritionPlanPanel
+        days={nutritionPlan.days}
+        loaded={nutritionPlan.loaded}
+        importing={nutritionPlan.importing}
+        generatingRecipe={loading}
+        onImport={nutritionPlan.importPlan}
+        onClear={nutritionPlan.clear}
+        onGenerateRecipe={handlePlanRecipe}
       />
 
       <div className="flex flex-col gap-3">

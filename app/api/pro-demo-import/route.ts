@@ -1,57 +1,19 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import {
   getClientKey,
   rateLimit,
   tooManyRequestsResponse,
 } from "@/lib/rateLimit";
+import {
+  buildPlanFileContentBlock,
+  MAX_PLAN_FILE_BASE64_LENGTH,
+  PLAN_IMPORT_SYSTEM_PROMPT,
+  PlanImportSchema,
+} from "@/lib/planImport";
 
 const client = new Anthropic();
-
-const PlanItemSchema = z.object({
-  food: z.string(),
-  quantity: z.string(),
-});
-
-const MealSchema = z.object({
-  name: z.string(),
-  items: z.array(PlanItemSchema),
-});
-
-const DaySchema = z.object({
-  day: z.string(),
-  meals: z.array(MealSchema),
-});
-
-const PlanImportSchema = z.object({
-  recognized: z.boolean(),
-  reason: z.string(),
-  days: z.array(DaySchema),
-});
-
-const SYSTEM_PROMPT = `Sei un assistente che trasforma un piano alimentare scritto da un nutrizionista (PDF o foto) in una struttura leggibile, per una demo commerciale mostrata al nutrizionista stesso.
-
-Regole:
-- Ricostruisci i giorni, per ogni giorno i pasti, e per ogni pasto gli alimenti con la quantità esattamente come scritta nel documento (es. "80g", "1 porzione", "q.b."). Non convertire unità e non inventare quantità assenti.
-- Non aggiungere alimenti, pasti o giorni che non sono nel documento.
-- Se il documento è davvero un piano alimentare leggibile, restituisci recognized: true, reason: stringa vuota, days valorizzato.
-- Se il documento NON è un piano alimentare leggibile (altro tipo di documento, scansione illeggibile, file vuoto, contenuto che non è un piano pasti), restituisci recognized: false, un reason breve e onesto in italiano che spiega perché, e days come array vuoto. In questo caso NON inventare una struttura plausibile: un'importazione sbagliata ma credibile è peggio di un errore dichiarato.`;
-
-const VALID_IMAGE_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-] as const;
-
-// Il documento importato in una demo di vendita può avere più pagine di una
-// singola foto del frigo, quindi il tetto è più alto di quello di /api/vision
-// — ma resta un tetto: senza limite chiunque potrebbe far esplodere il costo
-// di una singola chiamata con un file costruito ad arte.
-// ~10.7 milioni di caratteri base64 ≈ 8MB di file originale.
-const MAX_FILE_BASE64_LENGTH = 10_700_000;
 
 const IMPORT_LIMIT = 8;
 const IMPORT_WINDOW_MS = 10 * 60 * 1000;
@@ -98,47 +60,24 @@ export async function POST(request: Request) {
     );
   }
 
-  if (file.length > MAX_FILE_BASE64_LENGTH) {
+  if (file.length > MAX_PLAN_FILE_BASE64_LENGTH) {
     return NextResponse.json(
       { error: "Il file è troppo grande. Riprova con un file più leggero." },
       { status: 413 }
     );
   }
 
-  const isPdf = mediaType === "application/pdf";
-  const resolvedImageType = (
-    VALID_IMAGE_TYPES as readonly string[]
-  ).includes(mediaType as string)
-    ? (mediaType as (typeof VALID_IMAGE_TYPES)[number])
-    : "image/jpeg";
-
   try {
     const message = await client.messages.parse({
       model: "claude-sonnet-5",
       max_tokens: 4096,
       output_config: { format: zodOutputFormat(PlanImportSchema) },
-      system: SYSTEM_PROMPT,
+      system: PLAN_IMPORT_SYSTEM_PROMPT,
       messages: [
         {
           role: "user",
           content: [
-            isPdf
-              ? {
-                  type: "document",
-                  source: {
-                    type: "base64",
-                    media_type: "application/pdf",
-                    data: file,
-                  },
-                }
-              : {
-                  type: "image",
-                  source: {
-                    type: "base64",
-                    media_type: resolvedImageType,
-                    data: file,
-                  },
-                },
+            buildPlanFileContentBlock(file, mediaType),
             {
               type: "text",
               text: "Trasforma questo piano alimentare nella struttura richiesta.",

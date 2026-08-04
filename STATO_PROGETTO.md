@@ -70,6 +70,9 @@ app/
   globals.css            — palette brand (CSS variables), keyframe shimmer
   api/recipe/route.ts     — genera la ricetta (testo + preferenze)
   api/vision/route.ts     — riconosce ingredienti da una foto
+  api/nutrition-plan/route.ts — importa/salva/cancella il piano nutrizionale
+  api/plan-recipe/route.ts — genera una ricetta da un pasto del piano + dispensa
+  pro/, pro/demo/          — demo di vendita e import piano isolato, vedi punto 26-28
 
 components/
   RecipeFinder.tsx        — componente principale, tiene tutto lo stato
@@ -82,8 +85,10 @@ components/
   RecipeCardSkeleton.tsx   — skeleton animato durante il caricamento
   FridgeEmptyState.tsx     — illustrazione SVG prima di aggiungere ingredienti
   MealPlanPanel.tsx / AddToPlanButton.tsx — piano pasti settimanale
+  NutritionPlanPanel.tsx   — piano nutrizionale importato + "genera ricetta" per pasto
   PartnerProductsPreview.tsx — vetrina "presto disponibile" (NON funzionale)
   ui/                      — primitive shadcn (button, card, input, skeleton, collapsible)
+  pro/                     — demo di vendita Blendit Pro, vedi punto 26-28
 
 lib/
   types.ts                — Recipe, Preferences e tipi correlati
@@ -91,6 +96,8 @@ lib/
   usePantry.ts              — hook dispensa (Supabase, vedi sotto)
   useMealPlan.ts            — hook piano pasti (Supabase; MEAL_TYPES pranzo/cena)
   useShoppingList.ts        — hook lista della spesa (Supabase)
+  useNutritionPlan.ts       — hook piano nutrizionale importato (Supabase)
+  planImport.ts             — schema Zod + prompt condivisi tra /pro/demo e /api/nutrition-plan
   supabaseServer.ts / ownerId.ts / deviceId.ts — persistenza anonima, vedi sotto
   utils.ts                  — cn() (da shadcn)
 ```
@@ -309,6 +316,41 @@ lib/
     restano sempre coerenti tra loro. Il badge "Demo · dati di esempio"
     resta comunque sempre visibile — personalizzata o no, la demo dichiara
     di non essere reale.
+
+28. **Demo `/pro` resa interattiva**: l'atto "Il tuo piano" ha un vero
+    chatbot (`components/pro/ProPlanChat.tsx` + `app/api/pro-demo-chat/route.ts`,
+    unica chiamata AI reale su `/pro` — tutto il resto resta statico) che
+    risponde a domande di sostituzione restando dentro le equivalenze già
+    definite dal nutrizionista e una dispensa finta (`DEMO_PANTRY` in
+    `lib/proDemoData.ts`), mai inventando una regola nuova (coerente con
+    §2.1 di `PROGETTO_NUTRIZIONISTI.md`: l'AI non decide mai il piano).
+    L'atto "Il paziente cucina" ha passi navigabili 1-6 (avanti/indietro,
+    stesso pattern di `components/CookingMode.tsx`), "Salta" che non
+    registra nulla e non tocca il cruscotto (§2.3), e "Scrivi due righe"
+    che invia davvero una nota visibile sul telefono del paziente. L'atto
+    "Cosa vedi tu" ha la statistica "Sostituzioni" cliccabile per
+    espandere qualche esempio, senza mai richiedere una risposta (resta
+    vero "Messaggi a te: 0").
+
+29. **Piano nutrizionale reale (funzione consumer)** — `components/NutritionPlanPanel.tsx`,
+    `lib/useNutritionPlan.ts`, `app/api/nutrition-plan/route.ts`,
+    `app/api/plan-recipe/route.ts`: si importa il piano scritto dal proprio
+    nutrizionista (PDF o foto), viene strutturato dall'AI e salvato in modo
+    anonimo per dispositivo (tabella `nutrition_plan`, stesso pattern di
+    dispensa/piano pasti — un nuovo import sostituisce per intero quello
+    precedente). Per ogni pasto del piano, un pulsante genera una vera
+    `Recipe` che lo realizza privilegiando quello che c'è già in dispensa
+    (stesso schema di `app/api/recipe/route.ts`, quindi `RecipeCard`,
+    modalità cucina, "aggiungi al piano" e lista della spesa funzionano
+    già, zero modifiche); gli alimenti prescritti assenti dalla dispensa
+    finiscono in `missingIngredients` **senza il limite di 2** della
+    generazione libera, perché qui riflette il piano reale, non un piatto
+    inventato. La sostituzione riusa `app/api/substitute/route.ts` così
+    com'è. La logica di lettura del documento è condivisa con la demo
+    `/pro/demo` tramite `lib/planImport.ts`, per non mantenerla in due
+    posti. Testato dal vivo: riconosce correttamente "pollo" prescritto
+    come già coperto da "Petto di pollo" in dispensa, segnalando solo
+    "pasta integrale" come davvero mancante.
 
 ## Decisioni architetturali importanti (il "perché")
 
